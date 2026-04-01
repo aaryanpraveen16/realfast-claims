@@ -1,0 +1,17 @@
+{
+  "common": {
+    "welcome": "नमस्ते",
+    "logout": "लॉग आउट",
+    "policy": "पॉलिसी",
+    "claims": "दावा",
+    "adjudication": "न्यायनिर्णयन",
+    "admin": "एडमिन"
+  },
+  "claims": {
+    "submitted": "दावा जमा किया गया",
+    "under_review": "समीक्षाधीन",
+    "approved": "स्वीकृत",
+    "denied": "अस्वीकृत",
+    "paid": "भुगतान किया गया"
+  }
+}

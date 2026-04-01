@@ -1,0 +1,257 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum PlanType {
+  INDIVIDUAL
+  FAMILY_FLOATER
+  MULTI_INDIVIDUAL
+}
+
+enum ClaimType {
+  CASHLESS
+  REIMBURSEMENT
+}
+
+enum ClaimStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  PARTIAL
+  DENIED
+  PAID
+}
+
+enum LineItemStatus {
+  PENDING
+  ADJUDICATING
+  APPROVED
+  DENIED
+  NEEDS_REVIEW
+}
+
+enum DisputeStatus {
+  FILED
+  UNDER_REVIEW
+  UPHELD
+  REJECTED
+}
+
+enum NetworkStatus {
+  IN_NETWORK
+  OUT_OF_NETWORK
+}
+
+enum DeductibleType {
+  AGGREGATE
+  PER_PERSON
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+enum UserRole {
+  MEMBER
+  PROVIDER
+  ADJUDICATOR
+  SUPER_ADMIN
+}
+
+enum PaidTo {
+  PROVIDER
+  MEMBER
+}
+
+enum SubmittedBy {
+  MEMBER
+  PROVIDER
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password_hash String
+  role          UserRole
+  created_at    DateTime  @default(now())
+  member        Member?
+  provider      Provider?
+}
+
+model Member {
+  id           String      @id @default(uuid())
+  user_id      String      @unique
+  user         User        @relation(fields: [user_id], references: [id])
+  name         String
+  dob          DateTime
+  aadhaar_hash String
+  phone        String
+  policy_id    String
+  policy       Policy      @relation(fields: [policy_id], references: [id])
+  status       String
+  created_at   DateTime    @default(now())
+  dependents   Dependent[]
+  claims       Claim[]
+}
+
+model Dependent {
+  id             String   @id @default(uuid())
+  member_id      String
+  member         Member   @relation(fields: [member_id], references: [id])
+  name           String
+  dob            DateTime
+  relationship   String
+  aadhaar_hash   String
+  deductible_met Float    @default(0)
+  limit_used     Float    @default(0)
+  is_active      Boolean  @default(true)
+  claims         Claim[]
+}
+
+model Policy {
+  id                   String         @id @default(uuid())
+  name                 String
+  plan_type            PlanType
+  premium              Float
+  deductible           Float
+  deductible_type      DeductibleType
+  annual_limit         Float
+  network_type         String
+  room_rent_limit      Float
+  copay_pct            Float
+  voluntary_copay_pct  Float
+  ped_waiting_days     Int
+  employer_id          String?
+  members              Member[]
+  coverage_rules       CoverageRule[]
+}
+
+model CoverageRule {
+  id               String  @id @default(uuid())
+  policy_id        String
+  policy           Policy  @relation(fields: [policy_id], references: [id])
+  service_type     String
+  is_covered       Boolean
+  limit_per_year   Float
+  copay_flat       Float
+  requires_preauth Boolean
+  ped_exclusion    Boolean
+}
+
+model Provider {
+  id             String        @id @default(uuid())
+  user_id        String        @unique
+  user           User          @relation(fields: [user_id], references: [id])
+  name           String
+  license_no     String
+  network_status NetworkStatus
+  specialty      String
+  city           String
+  state          String
+  claims         Claim[]
+}
+
+model Claim {
+  id                  String      @id @default(uuid())
+  member_id           String
+  member              Member      @relation(fields: [member_id], references: [id])
+  dependent_id        String?
+  dependent           Dependent?  @relation(fields: [dependent_id], references: [id])
+  provider_id         String
+  provider            Provider    @relation(fields: [provider_id], references: [id])
+  claim_type          ClaimType
+  diagnosis_code      String
+  ped_flag            Boolean
+  status              ClaimStatus
+  submitted_by        SubmittedBy
+  submitted_at        DateTime    @default(now())
+  sla_deadline        DateTime
+  proportionate_ratio Float?
+  line_items          LineItem[]
+  eob                 EOB?
+}
+
+model LineItem {
+  id               String         @id @default(uuid())
+  claim_id         String
+  claim            Claim          @relation(fields: [claim_id], references: [id])
+  procedure_code   String
+  service_type     String
+  charged_amount   Float
+  approved_amount  Float?
+  status           LineItemStatus
+  denial_reason_en String?
+  denial_reason_hi String?
+  adjudication     Adjudication?
+}
+
+model Adjudication {
+  id               String    @id @default(uuid())
+  line_item_id     String    @unique
+  line_item        LineItem  @relation(fields: [line_item_id], references: [id])
+  is_covered       Boolean?
+  approved_amount  Float?
+  member_owes      Float?
+  denial_reason_en String?
+  denial_reason_hi String?
+  decision         String?
+  override_reason  String?
+  adjudicated_by   String?
+  adjudicated_at   DateTime?
+  payment          Payment?
+  dispute          Dispute?
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  adjudication_id String        @unique
+  adjudication    Adjudication  @relation(fields: [adjudication_id], references: [id])
+  amount          Float
+  paid_to         PaidTo
+  method          String
+  status          PaymentStatus
+  paid_at         DateTime?
+}
+
+model Dispute {
+  id              String        @id @default(uuid())
+  adjudication_id String        @unique
+  adjudication    Adjudication  @relation(fields: [adjudication_id], references: [id])
+  reason          String
+  supporting_docs String?
+  status          DisputeStatus
+  filed_at        DateTime      @default(now())
+  resolved_at     DateTime?
+  outcome         String?
+  resolved_by     String?
+}
+
+model EOB {
+  id             String   @id @default(uuid())
+  claim_id       String   @unique
+  claim          Claim    @relation(fields: [claim_id], references: [id])
+  total_charged  Float
+  total_approved Float
+  member_owes    Float
+  breakdown_json String
+  issued_at      DateTime @default(now())
+  pdf_url        String?
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  actor_id       String
+  actor_role     UserRole
+  action         String
+  entity_type    String
+  entity_id      String
+  timestamp      DateTime @default(now())
+  metadata_json  String?
+}

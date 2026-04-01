@@ -1,0 +1,17 @@
+{
+  "common": {
+    "welcome": "Welcome back",
+    "logout": "Logout",
+    "policy": "Policy",
+    "claims": "Claims",
+    "adjudication": "Adjudication",
+    "admin": "Admin"
+  },
+  "claims": {
+    "submitted": "Claim Submitted",
+    "under_review": "Under Review",
+    "approved": "Approved",
+    "denied": "Denied",
+    "paid": "Paid"
+  }
+}
