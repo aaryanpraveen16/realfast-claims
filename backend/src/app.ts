@@ -17,6 +17,7 @@ import { adjudicationRouter } from './modules/adjudication/adjudication.router';
 import { disputesRouter } from './modules/disputes/disputes.router';
 import { adminRouter } from './modules/admin/admin.router';
 import { paymentsRouter } from './modules/payments/payments.router';
+import { underwritingRouter } from './modules/underwriting/underwriting.router';
 
 
 // Start BullMQ workers
@@ -60,6 +61,7 @@ fastify.register(adjudicationRouter, { prefix: '/api/adjudication' });
 fastify.register(disputesRouter, { prefix: '/api/disputes' });
 fastify.register(adminRouter, { prefix: '/api/admin' });
 fastify.register(paymentsRouter, { prefix: '/api/payments' });
+fastify.register(underwritingRouter, { prefix: '/api/underwriting' });
 
 
 // Health Check

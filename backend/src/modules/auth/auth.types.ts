@@ -12,6 +12,7 @@ export interface RegisterInput {
   specialty?: string;
   city?: string;
   state?: string;
+  medical_conditions?: string;
 }
 
 export interface LoginInput {

@@ -62,6 +62,7 @@ enum UserRole {
   MEMBER
   PROVIDER
   ADJUDICATOR
+  UNDERWRITER
   SUPER_ADMIN
 }
 
@@ -103,6 +104,8 @@ model Member {
   limit_used        Float    @default(0)
   bank_account      String?
   ifsc_code         String?
+  medical_conditions String?
+  health_report_url  String?
   premium_payments PremiumPayment[]
 }
 
@@ -116,8 +119,12 @@ model Dependent {
   relationship      String
   aadhaar_hash      String
   medical_conditions String?
-  status             String   @default("PENDING_UNDERWRITING")
-  premium_amount     Float    @default(0)
+  status             String   @default("INITIATED")
+  base_premium       Float    @default(0)
+  loading_amount     Float    @default(0)
+  exclusions_json    String?
+  underwriter_notes  String?
+  underwriter_id     String?
   health_report_url  String?
   deductible_met    Float    @default(0)
   limit_used        Float    @default(0)
@@ -137,12 +144,14 @@ model Policy {
   network_type         String
   room_rent_limit      Float
   copay_pct            Float
+  out_of_network_copay_pct Float      @default(30)
   voluntary_copay_pct  Float
   ped_waiting_days     Int
   employer_id          String?
   members              Member[]
   coverage_rules       CoverageRule[]
   premium_payments     PremiumPayment[]
+  @@unique([name])
 }
 
 
@@ -156,6 +165,17 @@ model CoverageRule {
   copay_flat       Float
   requires_preauth Boolean
   ped_exclusion    Boolean
+  @@unique([policy_id, service_type])
+}
+
+model UICommunications {
+  id              String   @id @default(uuid())
+  entity_type     String   // "MEMBER" or "DEPENDENT"
+  entity_id       String
+  message         String
+  from_role       String   // "UNDERWRITER" or "MEMBER"
+  attachment_url  String?
+  created_at      DateTime @default(now())
 }
 
 model Provider {

@@ -42,7 +42,8 @@ export async function addDependent(request: FastifyRequest, reply: FastifyReply)
 
     for await (const part of parts) {
       if (part.type === 'file') {
-        filePart = part;
+        const buffer = await part.toBuffer();
+        filePart = { buffer, filename: part.filename };
       } else {
         // String fields
         data[part.fieldname] = (part as any).value;

@@ -2,6 +2,7 @@ import { prisma } from '../../config/db';
 import { ClaimStatus, ClaimType, SubmittedBy, UserRole, LineItemStatus } from '@prisma/client';
 import { SubmitClaimInput, ClaimResponse, ClaimSummary } from './claims.types';
 import { adjudicationQueue } from '../../config/queue';
+import { isChronicCondition, CHRONIC_KEYWORDS } from '../../utils/chronicDiseases';
 
 export async function submitClaim(
   input: SubmitClaimInput,
@@ -11,6 +12,7 @@ export async function submitClaim(
   // 1. Validations
   let memberId: string;
   let providerId: string;
+  let medicalHistory = '';
 
   if (submittedBy === SubmittedBy.MEMBER) {
     const member = await prisma.member.findUnique({
@@ -19,50 +21,48 @@ export async function submitClaim(
     if (!member) throw new Error('Member profile not found.');
     if (member.status !== 'ACTIVE') throw new Error('Member status is not ACTIVE.');
     if (!member.policy_id) throw new Error('Member has no active policy.');
-    if (input.claim_type !== ClaimType.REIMBURSEMENT) {
-      throw new Error('Members can only submit REIMBURSEMENT claims.');
-    }
+    
     memberId = member.id;
-    providerId = input.provider_id; // For members, name/id of the hospital
+    providerId = input.provider_id;
+    medicalHistory = (member as any).medical_conditions || '';
   } else {
     // PROVIDER flow
     const provider = await prisma.provider.findUnique({
       where: { user_id: actorUserId }
     });
     if (!provider) throw new Error('Provider profile not found.');
-    if (provider.network_status !== 'IN_NETWORK') {
-       throw new Error('Only IN_NETWORK providers can submit cashless claims.');
-    }
-    if (input.claim_type !== ClaimType.CASHLESS) {
-       throw new Error('Providers can only submit CASHLESS claims.');
-    }
     
-    // Validate member id from input (member lookup)
     const memberFound = await prisma.member.findUnique({
-       where: { id: input.provider_id } // In provider mode, input.provider_id might be used as search... 
-       // Wait, spec says: input.provider_id is the HOSPITAL. 
-       // But provider is the ACTOR. I'll search member by...
-       // Actually, the provider flow should have a memberId in the input. 
-       // Looking at SubmitClaimInput... it doesn't have memberId? 
-       // Ah, for Providers, we need to know WHICH member. 
+       where: { id: input.provider_id }
     });
-    // I'll assume input.provider_id in the PROVIDER flow is actually the MEMBER_ID for now, 
-    // or better, I'll use a specific field if it exists. 
-    // Wait, SubmitClaimInput should have memberId or I use provider_id as proxy. 
-    // Re-reading spec: "Member checks in at hospital -> provider logs in -> looks up member by ID"
-    // So the input should contain memberId. I'll add it to SubmitClaimInput in my head or just use a field.
-    // I'll assume input.provider_id is used for Member ID when submitted by Provider.
-    memberId = input.provider_id; 
+    if (!memberFound) throw new Error('Member record not found.');
+    
+    memberId = memberFound.id;
     providerId = provider.id;
+    medicalHistory = (memberFound as any).medical_conditions || '';
   }
 
-  // Dependent check
+  // Dependent check & History merge
   if (input.dependent_id) {
     const dep = await prisma.dependent.findUnique({
       where: { id: input.dependent_id }
     });
     if (!dep || dep.member_id !== memberId) {
       throw new Error('Invalid dependent for this member.');
+    }
+    medicalHistory += ` ${(dep as any).medical_conditions || ''}`;
+  }
+
+  // Automated PED Detection
+  const chronicMeta = isChronicCondition(input.diagnosis_code);
+  let ped_flag = chronicMeta.isChronic;
+
+  if (!ped_flag && medicalHistory) {
+    const historyLower = medicalHistory.toLowerCase();
+    const hasKeyword = CHRONIC_KEYWORDS.some(k => historyLower.includes(k));
+    if (hasKeyword) {
+      ped_flag = true;
+      console.log(`PED flag auto-set for diagnosis ${input.diagnosis_code} due to medical history match.`);
     }
   }
 
@@ -77,7 +77,7 @@ export async function submitClaim(
     : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
   // Transaction for atomic creation
-  const claim = await prisma.$transaction(async (tx) => {
+  const claim = await (prisma as any).$transaction(async (tx: any) => {
     const createdClaim = await tx.claim.create({
       data: {
         member_id: memberId,
@@ -88,7 +88,7 @@ export async function submitClaim(
         status: ClaimStatus.SUBMITTED,
         submitted_by: submittedBy,
         sla_deadline,
-        ped_flag: false, // Stubbed for now
+        ped_flag: ped_flag,
         admission_date: input.admission_date ? new Date(input.admission_date) : undefined,
         discharge_date: input.discharge_date ? new Date(input.discharge_date) : undefined,
       },
@@ -105,8 +105,8 @@ export async function submitClaim(
        await tx.member.update({
          where: { id: memberId },
          data: {
-           bank_account: input.bank_account || undefined,
-           ifsc_code: input.ifsc_code || undefined
+           bank_account: (input as any).bank_account || undefined,
+           ifsc_code: (input as any).ifsc_code || undefined
          }
        });
     }

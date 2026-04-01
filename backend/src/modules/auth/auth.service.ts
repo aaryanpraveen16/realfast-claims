@@ -5,7 +5,13 @@ import jwt from 'jsonwebtoken';
 import { env } from '../../config/env';
 import { UserRole, NetworkStatus } from '@prisma/client';
 
-export async function register(input: RegisterInput): Promise<AuthResponse> {
+import path from 'path';
+import fs from 'fs';
+
+export async function register(
+  input: RegisterInput, 
+  fileData?: { buffer: Buffer, filename: string }
+): Promise<AuthResponse> {
   const existingUser = await prisma.user.findUnique({
     where: { email: input.email },
   });
@@ -27,16 +33,26 @@ export async function register(input: RegisterInput): Promise<AuthResponse> {
     },
   });
 
-  // TODO: restrict ADJUDICATOR and SUPER_ADMIN roles to invite-only in production
   if (input.role === UserRole.MEMBER) {
+    let health_report_url = null;
+    if (fileData) {
+      const fileName = `member_${Date.now()}_${fileData.filename}`;
+      const uploadPath = path.join(__dirname, '../../../public/uploads', fileName);
+      
+      await fs.promises.writeFile(uploadPath, fileData.buffer);
+      health_report_url = `/uploads/${fileName}`;
+    }
+
     await prisma.member.create({
       data: {
         user_id: user.id,
         name: input.name,
         phone: input.phone || '',
-        status: 'ACTIVE',
+        status: input.medical_conditions ? 'PENDING_UNDERWRITING' : 'ACTIVE',
         dob: input.dob || new Date(),
         aadhaar_hash: input.aadhaar_hash || '',
+        medical_conditions: input.medical_conditions,
+        health_report_url,
       },
     });
   } else if (input.role === UserRole.PROVIDER) {

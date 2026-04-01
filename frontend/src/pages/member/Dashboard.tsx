@@ -3,15 +3,18 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { PolicyDrawer } from './PolicyDrawer';
 import { AddDependentModal } from './AddDependentModal';
+import { UnderwritingTimelineModal } from './UnderwritingTimelineModal';
 
 export const Dashboard = () => {
   const [member, setMember] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isTimelineOpen, setIsTimelineOpen] = useState(false);
+  const [timelineTarget, setTimelineTarget] = useState<{ id: string, type: 'MEMBER' | 'DEPENDENT', name: string } | null>(null);
   const [claims, setClaims] = useState<any[]>([]);
   const [notification, setNotification] = useState<{ message: string, type: 'success' | 'info' } | null>(null);
-  
+
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -21,13 +24,13 @@ export const Dashboard = () => {
       const response = await axios.get('/api/members/me', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       const memberData = response.data;
       if (!memberData.policy_id) {
         navigate('/member/select-policy');
         return;
       }
-      
+
       setMember(memberData);
     } catch (err) {
       console.error('Failed to fetch member profile', err);
@@ -45,8 +48,6 @@ export const Dashboard = () => {
       setClaims(response.data);
     } catch (err) {
       console.error('Failed to fetch claims', err);
-    } finally {
-      // Finished fetching claims
     }
   };
 
@@ -77,7 +78,6 @@ export const Dashboard = () => {
     }
   }, [notification]);
 
-
   const handleAddSuccess = () => {
     setNotification({ message: '✓ Dependent linked! Check status for activation requirements.', type: 'success' });
     fetchProfile();
@@ -87,6 +87,10 @@ export const Dashboard = () => {
     navigate(`/member/checkout/${member.policy_id}?dependent=${dependentId}`);
   };
 
+  const handleOpenTimeline = (id: string, type: 'MEMBER' | 'DEPENDENT', name: string) => {
+    setTimelineTarget({ id, type, name });
+    setIsTimelineOpen(true);
+  };
 
   if (loading) {
     return (
@@ -104,17 +108,15 @@ export const Dashboard = () => {
   const maxDependentsReached = dependents.length >= 5;
 
   return (
+    <>
     <div className="space-y-8 animate-in fade-in duration-700 pb-20">
-      {/* Notification Banner */}
       {notification && (
-        <div className={`fixed top-8 left-1/2 -translate-x-1/2 rounded-[2rem] p-6 text-center shadow-2xl animate-in fade-in slide-in-from-top-8 duration-500 z-[200] max-w-lg w-full border border-indigo-500/20 backdrop-blur-xl ${
-          notification.type === 'success' ? 'bg-indigo-600/90 text-white' : 'bg-slate-900/90 text-white'
-        }`}>
+        <div className={`fixed top-8 left-1/2 -translate-x-1/2 rounded-[2rem] p-6 text-center shadow-2xl animate-in fade-in slide-in-from-top-8 duration-500 z-[200] max-w-lg w-full border border-indigo-500/20 backdrop-blur-xl ${notification.type === 'success' ? 'bg-indigo-600/90 text-white' : 'bg-slate-900/90 text-white'
+          }`}>
           <p className="text-xl font-black">{notification.message}</p>
         </div>
       )}
 
-      {/* Primary Payment Banner */}
       {isPendingPayment && (
         <div className="bg-amber-50 border border-amber-200 rounded-[2.5rem] p-6 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm border-dashed">
           <div className="flex items-center gap-4">
@@ -128,7 +130,7 @@ export const Dashboard = () => {
               <p className="text-amber-700 text-sm">Your payment was not completed. Finish payment to activate coverage.</p>
             </div>
           </div>
-          <button 
+          <button
             onClick={() => navigate(`/member/checkout/${member.policy_id}`)}
             className="px-6 py-2 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 transition-colors whitespace-nowrap shadow-lg shadow-amber-200"
           >
@@ -140,24 +142,26 @@ export const Dashboard = () => {
       <div className="flex justify-between items-end px-2">
         <div>
           <h2 className="text-4xl font-black text-slate-900 tracking-tight">Welcome back, {member.name}</h2>
-          <p className="text-slate-500 font-medium mt-1">Your coverage is active and up to date.</p>
+          <p className="text-slate-500 font-medium mt-1">Your coverage status is shown below.</p>
         </div>
-        <div className="hidden md:block">
-          <span className={`inline-flex items-center px-4 py-2 rounded-full text-xs font-black border tracking-widest ${
-            member.status === 'ACTIVE' 
-              ? 'bg-green-100 text-green-700 border-green-200' 
+        <div className="hidden md:flex items-center gap-4">
+          <span className={`inline-flex items-center px-4 py-2 rounded-full text-xs font-black border tracking-widest ${member.status === 'ACTIVE'
+              ? 'bg-green-100 text-green-700 border-green-200'
               : 'bg-amber-100 text-amber-700 border-amber-200'
-          }`}>
-            <span className={`h-2 w-2 rounded-full mr-2 ${
-              member.status === 'ACTIVE' ? 'bg-green-500 animate-pulse' : 'bg-amber-500'
-            }`}></span>
-            {member.status === 'ACTIVE' ? 'POLICY ACTIVE' : 'PENDING'}
+            }`}>
+            <span className={`h-2 w-2 rounded-full mr-2 ${member.status === 'ACTIVE' ? 'bg-green-500 animate-pulse' : 'bg-amber-500'
+              }`}></span>
+            {member.status === 'ACTIVE' ? 'POLICY ACTIVE' : member.status === 'PENDING_UNDERWRITING' ? 'IN UNDERWRITING' : 'PENDING'}
           </span>
+          {member.status === 'PENDING_UNDERWRITING' && (
+            <span className="ml-4 px-4 py-2 bg-indigo-50 text-indigo-600 font-bold rounded-xl border border-indigo-100 text-[10px] uppercase tracking-widest animate-pulse">
+              Under Review
+            </span>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Policy Card */}
         <div className="md:col-span-1 p-8 bg-slate-900 rounded-[2.5rem] shadow-2xl relative overflow-hidden group text-white">
           <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
             <svg className="h-24 w-24 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -170,13 +174,13 @@ export const Dashboard = () => {
               <h3 className="text-2xl font-black leading-tight tracking-tight">{member.policy?.name || 'N/A'}</h3>
             </div>
             <div className="space-y-3">
-              <button 
+              <button
                 onClick={() => setIsDrawerOpen(true)}
                 className="w-full py-3 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 border border-white/10 backdrop-blur-sm"
               >
                 View Benefits
               </button>
-              <button 
+              <button
                 onClick={() => navigate('/member/select-policy')}
                 className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-indigo-900/40 flex items-center justify-center gap-2"
               >
@@ -195,8 +199,8 @@ export const Dashboard = () => {
             </div>
           </div>
           <div className="mt-6 w-full bg-slate-100 rounded-full h-2 overflow-hidden shadow-inner">
-            <div 
-              className="bg-indigo-600 h-full rounded-full shadow-lg shadow-indigo-100 transition-all duration-1000" 
+            <div
+              className="bg-indigo-600 h-full rounded-full shadow-lg shadow-indigo-100 transition-all duration-1000"
               style={{ width: `${Math.min(100, ((member.limit_used || 0) / (member.policy?.annual_limit || 1)) * 100)}%` }}
             ></div>
           </div>
@@ -205,66 +209,69 @@ export const Dashboard = () => {
         <div className="p-8 bg-white rounded-[2.5rem] shadow-sm border border-slate-100">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Claim Overview</p>
           <div className="mt-4 space-y-4">
-             <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-slate-900">Recent Claims</span>
-                <span className="text-sm font-black text-indigo-600 leading-none">{claims.length}</span>
-             </div>
-             {claims.length === 0 ? (
-               <>
-                 <p className="text-xs font-medium text-slate-400 leading-relaxed">No claims have been filed for this policy year yet.</p>
-                 <button 
-                   onClick={() => navigate('/member/submit-claim')}
-                   className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-indigo-100 transition-all hover:-translate-y-0.5 active:scale-95"
-                 >
-                   File your first claim
-                 </button>
-               </>
-             ) : (
-               <>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-slate-900">Total Charged</span>
-                    <span className="text-sm font-black text-slate-900 leading-none">
-                      ₹{claims.reduce((sum, c) => sum + c.total_charged, 0).toLocaleString()}
-                    </span>
-                  </div>
-                  <button 
-                    onClick={() => navigate('/member/claims')}
-                    className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-slate-200 transition-all hover:-translate-y-0.5 active:scale-95"
-                  >
-                    View all claims
-                  </button>
-               </>
-             )}
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-bold text-slate-900">Recent Claims</span>
+              <span className="text-sm font-black text-indigo-600 leading-none">{claims.length}</span>
+            </div>
+            {claims.length === 0 ? (
+              <>
+                <p className="text-xs font-medium text-slate-400 leading-relaxed">No claims filed yet.</p>
+                <button
+                  onClick={() => navigate('/member/submit-claim')}
+                  className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-indigo-100 transition-all hover:-translate-y-0.5"
+                >
+                  File claim
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-slate-900">Total Charged</span>
+                  <span className="text-sm font-black text-slate-900 leading-none">
+                    ₹{claims.reduce((sum, c) => sum + c.total_charged, 0).toLocaleString()}
+                  </span>
+                </div>
+                <button
+                  onClick={() => navigate('/member/claims')}
+                  className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-slate-200"
+                >
+                  View History
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Dependents Section */}
       <div className="space-y-6">
         <div className="flex justify-between items-center px-2">
           <h3 className="text-2xl font-black text-slate-900 tracking-tight">Family Dependents</h3>
-          <div className="flex items-center gap-4">
+          <div>
             {isIndividualPlan ? (
-              <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-100 animate-pulse uppercase tracking-wider">Plan Upgrade Required</span>
+              <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-100 uppercase tracking-wider">Upgrade Required</span>
             ) : maxDependentsReached ? (
-              <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100 uppercase tracking-wider">Capacity Full (5/5)</span>
+              <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100 uppercase tracking-wider">Full (5/5)</span>
             ) : (
-                <button 
-                  onClick={() => setIsAddModalOpen(true)}
-                  disabled={isPendingPayment}
-                  className="px-6 py-2 bg-indigo-600 text-white text-xs font-black rounded-full shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all uppercase tracking-widest active:scale-95 disabled:opacity-50"
-                >
-                  + Add Member
-                </button>
+              <button
+                onClick={() => setIsAddModalOpen(true)}
+                disabled={isPendingPayment}
+                className="px-6 py-2 bg-indigo-600 text-white text-xs font-black rounded-full shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all uppercase tracking-widest active:scale-95 disabled:opacity-50"
+              >
+                + Add Member
+              </button>
             )}
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Primary Holder (Always First) */}
-          <div className="p-8 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-between">
+          <div
+            onClick={() => member.status === 'PENDING_UNDERWRITING' && handleOpenTimeline(member.id, 'MEMBER', member.name)}
+            className={`p-8 bg-white rounded-[2.5rem] border shadow-sm flex flex-col justify-between transition-all group ${member.status === 'PENDING_UNDERWRITING' ? 'border-amber-200 hover:border-amber-400 cursor-pointer bg-amber-50/10' : 'border-slate-100'
+              }`}
+          >
             <div className="flex items-center gap-4 mb-4">
-              <div className="h-12 w-12 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 font-black text-xl">
+              <div className={`h-12 w-12 rounded-2xl flex items-center justify-center font-black text-xl ${member.status === 'ACTIVE' ? 'bg-indigo-100 text-indigo-600' : 'bg-amber-100 text-amber-600'
+                }`}>
                 {member.name.charAt(0)}
               </div>
               <div>
@@ -273,20 +280,26 @@ export const Dashboard = () => {
               </div>
             </div>
             <div className="pt-4 border-t border-slate-50 flex justify-between items-center">
-              <span className="px-3 py-1 bg-green-100 text-[9px] font-bold text-green-700 rounded-lg tracking-widest uppercase">Active</span>
+              <span className={`px-3 py-1 text-[9px] font-bold rounded-lg tracking-widest uppercase ${member.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                }`}>
+                {member.status === 'ACTIVE' ? 'Active' : 'In Underwriting'}
+              </span>
               <span className="text-[10px] font-bold text-slate-300">Base Plan Holder</span>
             </div>
           </div>
 
-          {/* Dynamic Dependents */}
           {dependents.map((dep: any) => (
-            <div key={dep.id} className="p-8 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-between group hover:border-indigo-100 transition-colors">
+            <div
+              key={dep.id}
+              onClick={() => dep.status === 'PENDING_UNDERWRITING' && handleOpenTimeline(dep.id, 'DEPENDENT', dep.name)}
+              className={`p-8 bg-white rounded-[2.5rem] border shadow-sm flex flex-col justify-between transition-all ${dep.status === 'PENDING_UNDERWRITING' ? 'border-amber-200 hover:border-amber-400 cursor-pointer bg-amber-50/10' : 'border-slate-100'
+                }`}
+            >
               <div className="flex items-center gap-4 mb-4">
-                <div className={`h-12 w-12 rounded-2xl flex items-center justify-center font-black text-xl transition-colors ${
-                  dep.status === 'ACTIVE' ? 'bg-green-50 text-green-600' : 
-                  dep.status === 'PENDING_UNDERWRITING' ? 'bg-amber-50 text-amber-600' :
-                  'bg-slate-50 text-slate-400'
-                }`}>
+                <div className={`h-12 w-12 rounded-2xl flex items-center justify-center font-black text-xl ${dep.status === 'ACTIVE' ? 'bg-green-50 text-green-600' :
+                    dep.status === 'PENDING_UNDERWRITING' ? 'bg-amber-50 text-amber-600' :
+                      'bg-slate-50 text-slate-400'
+                  }`}>
                   {dep.name.charAt(0)}
                 </div>
                 <div>
@@ -294,119 +307,59 @@ export const Dashboard = () => {
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{dep.relationship}</p>
                 </div>
               </div>
-              
+
               <div className="pt-4 border-t border-slate-50 flex justify-between items-center">
                 {dep.status === 'ACTIVE' ? (
                   <span className="px-3 py-1 bg-green-100 text-[9px] font-bold text-green-700 rounded-lg tracking-widest uppercase">Active</span>
                 ) : dep.status === 'PENDING_UNDERWRITING' ? (
                   <span className="px-3 py-1 bg-amber-100 text-[9px] font-bold text-amber-700 rounded-lg tracking-widest uppercase">In Underwriting</span>
-                ) : dep.status === 'PENDING_PAYMENT' ? (
-                  <button 
+                ) : dep.status === 'AWAITING_PAYMENT' ? (
+                  <button
                     onClick={() => handlePayDependent(dep.id)}
-                    className="px-3 py-1 bg-indigo-600 text-[9px] font-bold text-white rounded-lg tracking-widest uppercase hover:bg-indigo-700 transition-colors"
+                    className="px-3 py-1 bg-indigo-600 text-[9px] font-bold text-white rounded-lg tracking-widest uppercase hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100"
                   >
-                    Pay ₹{dep.premium_amount}
+                    Pay ₹{(dep.base_premium + dep.loading_amount).toLocaleString()}
                   </button>
                 ) : (
-                  <span className="px-3 py-1 bg-red-100 text-[9px] font-bold text-red-700 rounded-lg tracking-widest uppercase">Rejected</span>
+                  <span className="px-3 py-1 bg-slate-100 text-[9px] font-bold text-slate-500 rounded-lg tracking-widest uppercase">{dep.status}</span>
                 )}
-                
-                {dep.medical_conditions && (
-                  <div className="flex items-center gap-2">
-                     {dep.health_report_url && (
-                        <a 
-                          href={dep.health_report_url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="h-5 w-5 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all cursor-pointer"
-                          title="View Health Report"
-                        >
-                          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                        </a>
-                     )}
-                     <span className="h-5 w-5 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 hover:text-indigo-600 cursor-help" title={`Conditions: ${dep.medical_conditions}`}>
-                       <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                     </span>
-                  </div>
-                )}
-
               </div>
             </div>
           ))}
 
-          {/* Empty Slots */}
-          {!isIndividualPlan && dependents.length < 5 && Array.from({ length: Math.min(1, 5 - dependents.length) }).map((_, i) => (
-             <button 
-               key={i} onClick={() => setIsAddModalOpen(true)}
-               className="p-8 border-2 border-dashed border-slate-100 rounded-[2.5rem] flex flex-col items-center justify-center gap-2 group hover:border-indigo-100 hover:bg-indigo-50/50 transition-all text-slate-300 hover:text-indigo-600"
-             >
-                <div className="h-10 w-10 rounded-xl bg-slate-50 flex items-center justify-center group-hover:bg-indigo-100 transition-colors">
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                </div>
-                <p className="text-xs font-bold uppercase tracking-widest">Add Dependent</p>
-             </button>
-          ))}
+          {!isIndividualPlan && dependents.length < 5 && (
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="p-8 border-2 border-dashed border-slate-100 rounded-[2.5rem] flex flex-col items-center justify-center gap-2 group hover:border-indigo-100 hover:bg-indigo-50/50 transition-all text-slate-300 hover:text-indigo-600"
+            >
+              <div className="h-10 w-10 rounded-xl bg-slate-50 flex items-center justify-center group-hover:bg-indigo-100 transition-colors text-slate-400">
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              </div>
+              <p className="text-xs font-bold uppercase tracking-widest">Add Dependent</p>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Recent Claims Section */}
-      {claims.length > 0 && (
-         <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 mt-12">
-            <div className="flex justify-between items-center px-2">
-               <h3 className="text-2xl font-black text-slate-900 tracking-tight">Recent Activity</h3>
-               <button 
-                 onClick={() => navigate('/member/claims')}
-                 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:text-indigo-700 transition-colors"
-               >View History →</button>
-            </div>
-            <div className="grid grid-cols-1 gap-4">
-               {claims.slice(0, 3).map((claim) => (
-                  <div 
-                    key={claim.id}
-                    onClick={() => navigate(`/member/claims/${claim.id}`)}
-                    className="p-6 bg-white rounded-3xl border border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 cursor-pointer hover:border-indigo-100 hover:bg-indigo-50/30 transition-all group"
-                  >
-                     <div className="flex items-center gap-4 w-full md:w-auto">
-                        <div className={`h-12 w-12 rounded-2xl flex items-center justify-center text-xl shadow-sm ${
-                           claim.status === 'APPROVED' ? 'bg-green-50 text-green-600' :
-                           claim.status === 'REJECTED' ? 'bg-red-50 text-red-600' :
-                           'bg-blue-50 text-blue-600'
-                        }`}>
-                           {claim.status === 'APPROVED' ? '✓' : claim.status === 'REJECTED' ? '✕' : '•'}
-                        </div>
-                        <div>
-                           <p className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{claim.provider_name}</p>
-                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                              {new Date(claim.submitted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                           </p>
-                        </div>
-                     </div>
-                     <div className="flex items-center justify-between md:justify-end gap-8 w-full md:w-auto">
-                        <div className="text-right">
-                           <p className="text-sm font-black text-slate-900">₹{claim.total_charged.toLocaleString()}</p>
-                           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Amount</p>
-                        </div>
-                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all ${
-                           claim.status === 'APPROVED' ? 'bg-green-100 text-green-700 border-green-200' :
-                           claim.status === 'REJECTED' ? 'bg-red-100 text-red-700 border-red-200' :
-                           'bg-blue-100 text-blue-700 border-blue-200'
-                        }`}>
-                           {claim.status}
-                        </span>
-                     </div>
-                  </div>
-               ))}
-            </div>
-         </div>
-      )}
-
-      <PolicyDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} policy={member.policy} />
-
-      <AddDependentModal 
-        isOpen={isAddModalOpen} 
-        onClose={() => setIsAddModalOpen(false)} 
-        onSuccess={handleAddSuccess} 
-      />
     </div>
+
+    <PolicyDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} policy={member.policy} />
+
+    <AddDependentModal
+      isOpen={isAddModalOpen}
+      onClose={() => setIsAddModalOpen(false)}
+      onSuccess={handleAddSuccess}
+    />
+
+    {timelineTarget && (
+      <UnderwritingTimelineModal
+        isOpen={isTimelineOpen}
+        onClose={() => setIsTimelineOpen(false)}
+        entityId={timelineTarget.id}
+        entityType={timelineTarget.type}
+        entityName={timelineTarget.name}
+      />
+    )}
+    </>
   );
 };

@@ -32,6 +32,17 @@ async function main() {
     },
   });
 
+  const underwriterPassword = await bcrypt.hash('Under@123', saltRounds);
+  await prisma.user.upsert({
+    where: { email: 'underwriter@realfast.com' },
+    update: { password_hash: underwriterPassword },
+    create: {
+      email: 'underwriter@realfast.com',
+      password_hash: underwriterPassword,
+      role: UserRole.UNDERWRITER,
+    },
+  });
+
   const providerPassword = await bcrypt.hash('Provider@123', saltRounds);
   
   const apolloUser = await prisma.user.upsert({
@@ -95,8 +106,9 @@ async function main() {
       network_type: 'NATIONAL',
       room_rent_limit: 3000,
       copay_pct: 0,
+      out_of_network_copay_pct: 30,
       voluntary_copay_pct: 0,
-      ped_waiting_days: 730,
+      ped_waiting_days: 734,
       coverage: {
         DOCTOR_VISIT: 6000,
         MRI_SCAN: 8000,
@@ -118,6 +130,7 @@ async function main() {
       network_type: 'NATIONAL',
       room_rent_limit: 5000,
       copay_pct: 0,
+      out_of_network_copay_pct: 20,
       voluntary_copay_pct: 0,
       ped_waiting_days: 1095,
       coverage: {
@@ -141,8 +154,9 @@ async function main() {
       network_type: 'NATIONAL',
       room_rent_limit: 4000,
       copay_pct: 10,
+      out_of_network_copay_pct: 40,
       voluntary_copay_pct: 0,
-      ped_waiting_days: 730,
+      ped_waiting_days: 734,
       coverage: {
         DOCTOR_VISIT: 8000,
         MRI_SCAN: 12000,
@@ -157,67 +171,62 @@ async function main() {
   ];
 
   for (const p of policiesData) {
-    let policy = await prisma.policy.findFirst({ where: { name: p.name } });
-    
-    if (policy) {
-      policy = await prisma.policy.update({
-        where: { id: policy.id },
-        data: {
-          plan_type: p.plan_type,
-          premium: p.premium,
-          deductible: p.deductible,
-          deductible_type: p.deductible_type,
-          annual_limit: p.annual_limit,
-          room_rent_limit: p.room_rent_limit,
-          copay_pct: p.copay_pct,
-          ped_waiting_days: p.ped_waiting_days,
-          voluntary_copay_pct: p.voluntary_copay_pct,
-          network_type: p.network_type,
-        }
-      });
-    } else {
-      policy = await prisma.policy.create({
-        data: {
-          name: p.name,
-          plan_type: p.plan_type,
-          premium: p.premium,
-          deductible: p.deductible,
-          deductible_type: p.deductible_type,
-          annual_limit: p.annual_limit,
-          network_type: p.network_type,
-          room_rent_limit: p.room_rent_limit,
-          copay_pct: p.copay_pct,
-          voluntary_copay_pct: p.voluntary_copay_pct,
-          ped_waiting_days: p.ped_waiting_days,
-        }
-      });
-    }
+    const policy = await prisma.policy.upsert({
+      where: { name: p.name },
+      update: {
+        plan_type: p.plan_type,
+        premium: p.premium,
+        deductible: p.deductible,
+        deductible_type: p.deductible_type,
+        annual_limit: p.annual_limit,
+        room_rent_limit: p.room_rent_limit,
+        copay_pct: p.copay_pct,
+        ped_waiting_days: p.ped_waiting_days,
+        voluntary_copay_pct: p.voluntary_copay_pct,
+        network_type: p.network_type,
+        out_of_network_copay_pct: p.out_of_network_copay_pct,
+      },
+      create: {
+        name: p.name,
+        plan_type: p.plan_type,
+        premium: p.premium,
+        deductible: p.deductible,
+        deductible_type: p.deductible_type,
+        annual_limit: p.annual_limit,
+        network_type: p.network_type,
+        room_rent_limit: p.room_rent_limit,
+        copay_pct: p.copay_pct,
+        voluntary_copay_pct: p.voluntary_copay_pct,
+        ped_waiting_days: p.ped_waiting_days,
+        out_of_network_copay_pct: p.out_of_network_copay_pct,
+      },
+    });
 
     for (const [sType, limit] of Object.entries(p.coverage)) {
-      const existingRule = await prisma.coverageRule.findFirst({
-        where: { policy_id: policy.id, service_type: sType }
+      await prisma.coverageRule.upsert({
+        where: {
+          policy_id_service_type: {
+            policy_id: policy.id,
+            service_type: sType,
+          },
+        },
+        update: {
+          is_covered: true,
+          limit_per_year: limit as number,
+          copay_flat: 0,
+          requires_preauth: sType === 'MRI_SCAN' || sType === 'SURGERY',
+          ped_exclusion: true,
+        },
+        create: {
+          policy_id: policy.id,
+          service_type: sType,
+          is_covered: true,
+          limit_per_year: limit as number,
+          copay_flat: 0,
+          requires_preauth: sType === 'MRI_SCAN' || sType === 'SURGERY',
+          ped_exclusion: true,
+        },
       });
-
-      const ruleData = {
-        policy_id: policy.id,
-        service_type: sType,
-        is_covered: true,
-        limit_per_year: limit as number,
-        copay_flat: 0,
-        requires_preauth: sType === 'MRI_SCAN' || sType === 'SURGERY',
-        ped_exclusion: true,
-      };
-
-      if (existingRule) {
-        await prisma.coverageRule.update({
-          where: { id: existingRule.id },
-          data: ruleData
-        });
-      } else {
-        await prisma.coverageRule.create({
-          data: ruleData
-        });
-      }
     }
   }
 

@@ -10,11 +10,14 @@ import { Dashboard as MemberDashboard } from './pages/member/Dashboard';
 import { PolicySelection } from './pages/member/PolicySelection';
 import { Checkout } from './pages/member/Checkout';
 import { Dashboard as ProviderDashboard } from './pages/provider/Dashboard';
+import { Dashboard as UnderwriterDashboard } from './pages/underwriter/Dashboard';
 
 import { Dashboard as AdjudicatorDashboard } from './pages/adjudicator/Dashboard';
+import { ClaimReview as AdjudicatorClaimReview } from './pages/adjudicator/ClaimReview';
 import { SubmitClaim } from './pages/member/SubmitClaim';
 import { ClaimsList } from './pages/member/ClaimsList';
 import { ClaimDetail } from './pages/member/ClaimDetail';
+import { ClaimDetail as ProviderClaimDetail } from './pages/provider/ClaimDetail';
 import { EligibilityCheck } from './pages/provider/EligibilityCheck';
 import { SubmitCashlessClaim } from './pages/provider/SubmitCashlessClaim';
 
@@ -33,7 +36,7 @@ export const Layout = ({ children, role }: { children: ReactNode, role: string }
         <div className="flex items-center gap-6">
           <div className="text-right">
             <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">{role}</p>
-            <p className="text-sm font-medium text-gray-900">{user?.userId.substring(0, 8)}...</p>
+            <p className="text-sm font-medium text-gray-900 font-mono">{user?.userId}</p>
           </div>
           <button 
             onClick={logout}
@@ -66,6 +69,7 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: JSX.Element, all
       'MEMBER': '/member',
       'PROVIDER': '/provider',
       'ADJUDICATOR': '/adjudicator',
+      'UNDERWRITER': '/underwriter',
       'SUPER_ADMIN': '/admin'
     };
     return <Navigate to={dashboardMap[role] || '/'} replace />;
@@ -147,11 +151,27 @@ function App() {
           <Layout role="PROVIDER"><SubmitCashlessClaim /></Layout>
         </ProtectedRoute>
       } />
+      <Route path="/provider/claims/:id" element={
+        <ProtectedRoute allowedRoles={['PROVIDER']}>
+          <Layout role="PROVIDER"><ProviderClaimDetail /></Layout>
+        </ProtectedRoute>
+      } />
 
-      {/* Protected Adjudicator Routes */}
       <Route path="/adjudicator" element={
         <ProtectedRoute allowedRoles={['ADJUDICATOR']}>
           <Layout role="ADJUDICATOR"><AdjudicatorDashboard /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/adjudicator/claims/:id" element={
+        <ProtectedRoute allowedRoles={['ADJUDICATOR']}>
+          <Layout role="ADJUDICATOR"><AdjudicatorClaimReview /></Layout>
+        </ProtectedRoute>
+      } />
+
+      {/* Protected Underwriter Routes */}
+      <Route path="/underwriter" element={
+        <ProtectedRoute allowedRoles={['UNDERWRITER']}>
+          <Layout role="UNDERWRITER"><UnderwriterDashboard /></Layout>
         </ProtectedRoute>
       } />
 

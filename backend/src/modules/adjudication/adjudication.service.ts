@@ -27,27 +27,78 @@ export async function getAdjudicationQueue() {
   }));
 }
 
-// TODO: getAdjudicationDetail
-// Input:  claimId: string
-// Output: Promise<Claim | null>
-// Rule:   Fetch claim with detail for adjudication.
+import { eobQueue } from '../../config/queue';
+import { ClaimStatus, LineItemStatus } from '@prisma/client';
+
 export async function getAdjudicationDetail(id: string) {
-  // TODO: Implement getAdjudicationDetail logic
-  return null;
+  return prisma.claim.findUnique({
+    where: { id },
+    include: {
+      member: {
+        include: {
+          policy: {
+             include: { coverage_rules: true }
+          }
+        }
+      },
+      provider: true,
+      line_items: {
+        include: { adjudication: true }
+      }
+    }
+  });
 }
 
-// TODO: decideLineItem
-// Input:  lineItemId: string, decision: any
-// Output: Promise<void>
-// Rule:   Finalize a manual adjudication decision.
-export async function decideLineItem(id: string, decision: any) {
-  // TODO: Implement decideLineItem logic
+export async function decideLineItem(lineItemId: string, decision: any) {
+  const { is_covered, approved_amount, member_owes, denial_reason_en } = decision;
+
+  return prisma.$transaction(async (tx) => {
+    // 1. Update Adjudication result
+    const adj = await tx.adjudication.update({
+      where: { line_item_id: lineItemId },
+      data: {
+        is_covered,
+        approved_amount,
+        member_owes,
+        denial_reason_en,
+        decision: is_covered ? LineItemStatus.APPROVED : LineItemStatus.DENIED,
+        adjudicated_at: new Date(),
+        // Note: In a real system, we'd record adjudicated_by from the actor context
+      }
+    });
+
+    // 2. Update Line Item Status
+    const lineItem = await tx.lineItem.update({
+      where: { id: lineItemId },
+      data: {
+        status: is_covered ? LineItemStatus.APPROVED : LineItemStatus.DENIED,
+        approved_amount
+      },
+      include: { claim: { include: { line_items: true } } }
+    });
+
+    // 3. Check if overall claim can transition from UNDER_REVIEW
+    const allDecided = lineItem.claim.line_items.every(li => 
+      li.status === LineItemStatus.APPROVED || li.status === LineItemStatus.DENIED
+    );
+
+    if (allDecided) {
+      const anyApproved = lineItem.claim.line_items.some(li => li.status === LineItemStatus.APPROVED);
+      const finalStatus = anyApproved ? ClaimStatus.APPROVED : ClaimStatus.DENIED;
+      
+      await tx.claim.update({
+        where: { id: lineItem.claim_id },
+        data: { status: finalStatus }
+      });
+
+      // 4. Trigger EOB Queue
+      await eobQueue.add('generate_eob', { claimId: lineItem.claim_id });
+    }
+  });
 }
 
-// TODO: overrideLineItem
-// Input:  lineItemId: string, decision: any
-// Output: Promise<void>
-// Rule:   Override an automated or manual decision by an admin.
-export async function overrideLineItem(id: string, decision: any) {
-  // TODO: Implement overrideLineItem logic
+export async function overrideLineItem(lineItemId: string, decision: any) {
+  // Overrides are similar to decisions but might bypass some basic rules
+  // For the MVP, we reuse the same logic
+  return decideLineItem(lineItemId, decision);
 }

@@ -26,7 +26,11 @@ export async function updateMember(memberId: string, data: any) {
 
 // Rule:   Create a new dependent for the member with Underwriting integration.
 // Supports optional file upload.
-export async function createDependent(memberId: string, data: any, file?: any) {
+export async function createDependent(
+  memberId: string, 
+  data: any, 
+  fileData?: { buffer: Buffer, filename: string }
+) {
   const member = await prisma.member.findUnique({
     where: { id: memberId },
     include: { policy: true },
@@ -51,12 +55,11 @@ export async function createDependent(memberId: string, data: any, file?: any) {
 
   // Handle File Persistence if present
   let health_report_url = null;
-  if (file) {
-    const fileName = `${Date.now()}_${file.filename}`;
+  if (fileData) {
+    const fileName = `${Date.now()}_${fileData.filename}`;
     const uploadPath = path.join(__dirname, '../../../public/uploads', fileName);
     
-    const buffer = await file.toBuffer();
-    await fs.promises.writeFile(uploadPath, buffer);
+    await fs.promises.writeFile(uploadPath, fileData.buffer);
     health_report_url = `/uploads/${fileName}`;
   }
 
@@ -71,8 +74,9 @@ export async function createDependent(memberId: string, data: any, file?: any) {
     data: {
       ...data,
       member_id: memberId,
-      status: ratingData.requiresManualUnderwriting ? 'PENDING_UNDERWRITING' : 'PENDING_PAYMENT',
-      premium_amount: ratingData.totalPremium,
+      status: ratingData.requiresManualUnderwriting ? 'PENDING_UNDERWRITING' : 'AWAITING_PAYMENT',
+      base_premium: ratingData.basePremium,
+      loading_amount: ratingData.loadingAmount,
       health_report_url,
       is_active: false,
     },
@@ -85,26 +89,28 @@ export async function payDependentPremium(memberId: string, dependentId: string,
     where: { id: dependentId }
   });
 
-  if (!dependent || dependent.member_id !== memberId) {
+  if (!dependent || (dependent as any).member_id !== memberId) {
     const error = new Error('Dependent not found.');
     (error as any).statusCode = 404;
     throw error;
   }
 
-  if (dependent.status !== 'PENDING_PAYMENT') {
-    const error = new Error('Dependent is not in a state that allows payment (Underwriting may be required).');
+  if (dependent.status !== 'AWAITING_PAYMENT') {
+    const error = new Error('Dependent is not in a state that allows payment (Underwriting may be required or already active).');
     (error as any).statusCode = 400;
     throw error;
   }
 
   return prisma.$transaction(async (tx) => {
     // 1. Create the payment record
-    await tx.premiumPayment.create({
+    const totalAmount = (dependent as any).base_premium + (dependent as any).loading_amount;
+    
+    await (tx as any).premiumPayment.create({
       data: {
         member_id: memberId,
         policy_id: (await tx.member.findUnique({ where: { id: memberId } }))?.policy_id!,
         dependent_id: dependentId,
-        amount: dependent.premium_amount,
+        amount: totalAmount,
         method: paymentData.method,
         status: 'PROCESSED'
       }
