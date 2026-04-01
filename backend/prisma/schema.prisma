@@ -93,8 +93,8 @@ model Member {
   dob          DateTime
   aadhaar_hash String
   phone        String
-  policy_id    String
-  policy       Policy      @relation(fields: [policy_id], references: [id])
+  policy_id    String?
+  policy       Policy?      @relation(fields: [policy_id], references: [id])
   status       String
   created_at   DateTime    @default(now())
   dependents   Dependent[]

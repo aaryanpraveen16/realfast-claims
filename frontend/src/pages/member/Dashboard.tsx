@@ -3,7 +3,7 @@
 // TODO: MemberDashboard
 // Purpose: Display overview of member's policy, active claims, and dependents.
 // Components: PolicyCard, RecentClaimsTable, DependentsList
-const Dashboard = () => {
+export const Dashboard = () => {
   return (
     <div className="space-y-6">
       <div className="bg-white p-6 rounded-lg shadow-sm">
@@ -31,4 +31,3 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard;
