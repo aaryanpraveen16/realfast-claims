@@ -2,7 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useState } from 'react';
 
 // Layout
-const Layout = ({ children, role }: { children: React.ReactNode, role: string }) => (
+export const Layout = ({ children, role }: { children: React.ReactNode, role: string }) => (
   <div className="min-h-screen bg-gray-50">
     <nav className="bg-white border-b px-6 py-4 flex justify-between items-center">
       <h1 className="text-xl font-bold text-primary-600">RealFast Claims</h1>
