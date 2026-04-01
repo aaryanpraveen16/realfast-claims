@@ -1,21 +1,13 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
+import * as providersService from './providers.service';
 
-// TODO: checkEligibility
-// Input:  request: FastifyRequest, reply: FastifyReply
-// Output: Promise<void>
-// Rule:   Provider checks if a member's policy is active and covers potential service.
-// Calls:  membersService.getMemberPolicy, adjudication.rulesEngine (eligibility only)
-// Edge:   Policy might be active but the specific service_type could be excluded.
-export async function checkEligibility(request: FastifyRequest, reply: FastifyReply) {
-  reply.code(501).send({ message: "Not implemented" });
+export async function checkEligibility(request: FastifyRequest<{ Params: { memberId: string } }>, reply: FastifyReply) {
+  const user = request.user as any;
+  const result = await providersService.checkEligibility(request.params.memberId, user.userId);
+  return reply.send(result);
 }
 
-// TODO: submitCashlessClaim
-// Input:  request: FastifyRequest, reply: FastifyReply
-// Output: Promise<void>
-// Rule:   Provider submits a claim on behalf of a member for direct settlement.
-// Calls:  claimsService.submitClaim (claim_type: CASHLESS)
-// Edge:   If provider is OUT_OF_NETWORK, cashless claims must be rejected upfront.
-export async function submitCashlessClaim(request: FastifyRequest, reply: FastifyReply) {
-  reply.code(501).send({ message: "Not implemented" });
+export async function getAllProviders(request: FastifyRequest, reply: FastifyReply) {
+  const providers = await providersService.getAllProviders();
+  return reply.send(providers);
 }

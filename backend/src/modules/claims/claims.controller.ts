@@ -1,41 +1,56 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
+import * as claimsService from './claims.service';
+import { SubmitClaimInput } from './claims.types';
+import { SubmittedBy, UserRole } from '@prisma/client';
 
-// TODO: createClaim
-// Input:  request: FastifyRequest, reply: FastifyReply
-// Output: Promise<void>
-// Rule:   Submit a new claim. Validate fields against Member, Policy, and Providers.
-// Calls:  claimsService.submitClaim, adjudicationQueue.add
-// Edge:   Calculate SLA deadline (24h or 48h) based on claim type on submission.
-export async function createClaim(request: FastifyRequest, reply: FastifyReply) {
-  reply.code(501).send({ message: "Not implemented" });
+export async function submitClaim(request: FastifyRequest<{ Body: SubmitClaimInput }>, reply: FastifyReply) {
+  const user = request.user as any;
+  const submittedBy = user.role === UserRole.MEMBER ? SubmittedBy.MEMBER : SubmittedBy.PROVIDER;
+  
+  const claim = await claimsService.submitClaim(request.body, submittedBy, user.userId);
+  return reply.code(201).send(claim);
 }
 
-// TODO: getClaim
-// Input:  request: FastifyRequest, reply: FastifyReply
-// Output: Promise<void>
-// Rule:   Fetch details of a single claim, including all line items.
-// Calls:  claimsService.getClaimDetail
-// Edge:   Ensure the calling Member belongs to the claim's policy or is the Provider.
-export async function getClaim(request: FastifyRequest, reply: FastifyReply) {
-  reply.code(501).send({ message: "Not implemented" });
+export async function getClaimById(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+  const user = request.user as any;
+  const claim = await claimsService.getClaimById(request.params.id, user.userId, user.role);
+  return reply.send(claim);
 }
 
-// TODO: getClaimEOB
-// Input:  request: FastifyRequest, reply: FastifyReply
-// Output: Promise<void>
-// Rule:   Retrieve the Explanation of Benefits for a claim. Check claim status is PAID or APPROVED.
-// Calls:  claimsService.getEOBByClaimId
-// Edge:   If EOB is not yet generated, return 202 Accepted if it is in progress.
-export async function getClaimEOB(request: FastifyRequest, reply: FastifyReply) {
-  reply.code(501).send({ message: "Not implemented" });
+export async function getMemberClaims(request: FastifyRequest, reply: FastifyReply) {
+  const user = request.user as any;
+  if (user.role !== UserRole.MEMBER) {
+    return reply.code(403).send({ error: 'Only members can access this endpoint.' });
+  }
+  const claims = await claimsService.getMemberClaims(user.userId);
+  return reply.send(claims);
 }
 
-// TODO: getMyClaims
-// Input:  request: FastifyRequest, reply: FastifyReply
-// Output: Promise<void>
-// Rule:   Fetch all claims for the currently logged-in member.
-// Calls:  claimsService.getClaimsByMemberId
-// Edge:   Support pagination and filtering by claim status.
-export async function getMyClaims(request: FastifyRequest, reply: FastifyReply) {
-  reply.code(501).send({ message: "Not implemented" });
+export async function getProviderClaims(request: FastifyRequest, reply: FastifyReply) {
+  const user = request.user as any;
+  if (user.role !== UserRole.PROVIDER) {
+    return reply.code(403).send({ error: 'Only providers can access this endpoint.' });
+  }
+  const claims = await claimsService.getProviderClaims(user.userId);
+  return reply.send(claims);
+}
+
+export async function uploadClaimDocument(request: FastifyRequest, reply: FastifyReply) {
+  // Logic for @fastify/multipart
+  const parts = request.files();
+  const filePaths: string[] = [];
+  
+  for await (const part of parts) {
+    const fileName = `${Date.now()}_${part.filename}`;
+    const uploadPath = `public/uploads/claims/${fileName}`;
+    filePaths.push(`/uploads/claims/${fileName}`);
+    // Save file buffer
+    const fs = require('fs');
+    const path = require('path');
+    const buffer = await part.toBuffer();
+    await fs.promises.mkdir(path.dirname(uploadPath), { recursive: true });
+    await fs.promises.writeFile(uploadPath, buffer);
+  }
+  
+  return reply.send({ file_paths: filePaths });
 }

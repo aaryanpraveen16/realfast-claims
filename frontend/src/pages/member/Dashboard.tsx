@@ -9,6 +9,7 @@ export const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [claims, setClaims] = useState<any[]>([]);
   const [notification, setNotification] = useState<{ message: string, type: 'success' | 'info' } | null>(null);
   
   const navigate = useNavigate();
@@ -35,8 +36,23 @@ export const Dashboard = () => {
     }
   };
 
+  const fetchClaims = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/claims/me/member', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setClaims(response.data);
+    } catch (err) {
+      console.error('Failed to fetch claims', err);
+    } finally {
+      // Finished fetching claims
+    }
+  };
+
   useEffect(() => {
     fetchProfile();
+    fetchClaims();
   }, [navigate]);
 
   useEffect(() => {
@@ -174,12 +190,15 @@ export const Dashboard = () => {
           <div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Annual Limit Used</p>
             <div className="flex items-baseline gap-2 mt-2">
-              <p className="text-4xl font-black text-slate-900">₹0</p>
+              <p className="text-4xl font-black text-slate-900">₹{(member.limit_used || 0).toLocaleString()}</p>
               <p className="text-sm font-bold text-slate-400">/ ₹{member.policy?.annual_limit?.toLocaleString()}</p>
             </div>
           </div>
           <div className="mt-6 w-full bg-slate-100 rounded-full h-2 overflow-hidden shadow-inner">
-            <div className="bg-indigo-600 h-full w-[2%] rounded-full shadow-lg shadow-indigo-100"></div>
+            <div 
+              className="bg-indigo-600 h-full rounded-full shadow-lg shadow-indigo-100 transition-all duration-1000" 
+              style={{ width: `${Math.min(100, ((member.limit_used || 0) / (member.policy?.annual_limit || 1)) * 100)}%` }}
+            ></div>
           </div>
         </div>
 
@@ -187,11 +206,35 @@ export const Dashboard = () => {
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Claim Overview</p>
           <div className="mt-4 space-y-4">
              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-slate-900">Total Approved</span>
-                <span className="text-sm font-black text-green-600 leading-none">₹0.00</span>
+                <span className="text-sm font-bold text-slate-900">Recent Claims</span>
+                <span className="text-sm font-black text-indigo-600 leading-none">{claims.length}</span>
              </div>
-             <p className="text-xs font-medium text-slate-400 leading-relaxed">No claims have been filed for this policy year yet.</p>
-             <button className="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors uppercase tracking-[0.2em]">Settle a bill →</button>
+             {claims.length === 0 ? (
+               <>
+                 <p className="text-xs font-medium text-slate-400 leading-relaxed">No claims have been filed for this policy year yet.</p>
+                 <button 
+                   onClick={() => navigate('/member/submit-claim')}
+                   className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-indigo-100 transition-all hover:-translate-y-0.5 active:scale-95"
+                 >
+                   File your first claim
+                 </button>
+               </>
+             ) : (
+               <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-slate-900">Total Charged</span>
+                    <span className="text-sm font-black text-slate-900 leading-none">
+                      ₹{claims.reduce((sum, c) => sum + c.total_charged, 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <button 
+                    onClick={() => navigate('/member/claims')}
+                    className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-slate-200 transition-all hover:-translate-y-0.5 active:scale-95"
+                  >
+                    View all claims
+                  </button>
+               </>
+             )}
           </div>
         </div>
       </div>
@@ -305,6 +348,57 @@ export const Dashboard = () => {
           ))}
         </div>
       </div>
+
+      {/* Recent Claims Section */}
+      {claims.length > 0 && (
+         <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 mt-12">
+            <div className="flex justify-between items-center px-2">
+               <h3 className="text-2xl font-black text-slate-900 tracking-tight">Recent Activity</h3>
+               <button 
+                 onClick={() => navigate('/member/claims')}
+                 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:text-indigo-700 transition-colors"
+               >View History →</button>
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+               {claims.slice(0, 3).map((claim) => (
+                  <div 
+                    key={claim.id}
+                    onClick={() => navigate(`/member/claims/${claim.id}`)}
+                    className="p-6 bg-white rounded-3xl border border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 cursor-pointer hover:border-indigo-100 hover:bg-indigo-50/30 transition-all group"
+                  >
+                     <div className="flex items-center gap-4 w-full md:w-auto">
+                        <div className={`h-12 w-12 rounded-2xl flex items-center justify-center text-xl shadow-sm ${
+                           claim.status === 'APPROVED' ? 'bg-green-50 text-green-600' :
+                           claim.status === 'REJECTED' ? 'bg-red-50 text-red-600' :
+                           'bg-blue-50 text-blue-600'
+                        }`}>
+                           {claim.status === 'APPROVED' ? '✓' : claim.status === 'REJECTED' ? '✕' : '•'}
+                        </div>
+                        <div>
+                           <p className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{claim.provider_name}</p>
+                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                              {new Date(claim.submitted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                           </p>
+                        </div>
+                     </div>
+                     <div className="flex items-center justify-between md:justify-end gap-8 w-full md:w-auto">
+                        <div className="text-right">
+                           <p className="text-sm font-black text-slate-900">₹{claim.total_charged.toLocaleString()}</p>
+                           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Amount</p>
+                        </div>
+                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all ${
+                           claim.status === 'APPROVED' ? 'bg-green-100 text-green-700 border-green-200' :
+                           claim.status === 'REJECTED' ? 'bg-red-100 text-red-700 border-red-200' :
+                           'bg-blue-100 text-blue-700 border-blue-200'
+                        }`}>
+                           {claim.status}
+                        </span>
+                     </div>
+                  </div>
+               ))}
+            </div>
+         </div>
+      )}
 
       <PolicyDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} policy={member.policy} />
 

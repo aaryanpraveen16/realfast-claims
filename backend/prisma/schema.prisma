@@ -99,6 +99,10 @@ model Member {
   created_at   DateTime    @default(now())
   dependents   Dependent[]
   claims       Claim[]
+  deductible_met    Float    @default(0)
+  limit_used        Float    @default(0)
+  bank_account      String?
+  ifsc_code         String?
   premium_payments PremiumPayment[]
 }
 
@@ -183,6 +187,8 @@ model Claim {
   submitted_at        DateTime    @default(now())
   sla_deadline        DateTime
   proportionate_ratio Float?
+  admission_date      DateTime?
+  discharge_date      DateTime?
   line_items          LineItem[]
   eob                 EOB?
 }
@@ -191,6 +197,7 @@ model LineItem {
   id               String         @id @default(uuid())
   claim_id         String
   claim            Claim          @relation(fields: [claim_id], references: [id])
+  service_date     DateTime
   procedure_code   String
   service_type     String
   charged_amount   Float

@@ -1,12 +1,30 @@
 import { prisma } from '../../config/db';
 
-// TODO: getAdjudicationQueue
-// Input:  none
-// Output: Promise<Claim[]>
-// Rule:   List claims that need manual adjudicator review.
 export async function getAdjudicationQueue() {
-  // TODO: Implement getAdjudicationQueue logic
-  return [];
+  const claims = await prisma.claim.findMany({
+    where: {
+      status: 'UNDER_REVIEW',
+    },
+    include: {
+      member: true,
+      provider: true,
+      line_items: true,
+    },
+    orderBy: {
+      sla_deadline: 'asc',
+    },
+  });
+
+  return claims.map((claim) => ({
+    id: claim.id,
+    member_name: claim.member.name,
+    provider_name: claim.provider.name,
+    claim_type: claim.claim_type,
+    status: claim.status,
+    submitted_at: claim.submitted_at,
+    total_charged: claim.line_items.reduce((sum, li) => sum + li.charged_amount, 0),
+    sla_deadline: claim.sla_deadline,
+  }));
 }
 
 // TODO: getAdjudicationDetail

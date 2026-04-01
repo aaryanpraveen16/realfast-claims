@@ -6,8 +6,9 @@ import { roleGuard } from '../../middleware/roleGuard';
 export async function claimsRouter(fastify: FastifyInstance) {
   fastify.addHook('preHandler', verifyJWT);
   
-  fastify.post('/', { preHandler: roleGuard(['MEMBER', 'PROVIDER']) }, claimsController.createClaim);
-  fastify.get('/:id', { preHandler: roleGuard(['MEMBER', 'PROVIDER', 'ADJUDICATOR']) }, claimsController.getClaim);
-  fastify.get('/:id/eob', { preHandler: roleGuard(['MEMBER']) }, claimsController.getClaimEOB);
-  fastify.get('/me', { preHandler: roleGuard(['MEMBER']) }, claimsController.getMyClaims);
+  fastify.post('/', claimsController.submitClaim);
+  fastify.get('/:id', claimsController.getClaimById);
+  fastify.get('/me/member', { preHandler: roleGuard(['MEMBER']) }, claimsController.getMemberClaims);
+  fastify.get('/me/provider', { preHandler: roleGuard(['PROVIDER']) }, claimsController.getProviderClaims);
+  fastify.post('/upload', claimsController.uploadClaimDocument);
 }

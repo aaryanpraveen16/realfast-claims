@@ -1,5 +1,6 @@
 import { Worker, Job } from 'bullmq';
 import { env } from '../config/env';
+import { prisma } from '../config/db';
 import { runRulesEngine } from '../modules/adjudication/rulesEngine';
 
 // TODO: adjudicationWorker
@@ -10,9 +11,19 @@ import { runRulesEngine } from '../modules/adjudication/rulesEngine';
 // Edge:   If rules fail due to data inconsistency, move to FAILED but retry 3 times.
 const worker = new Worker(
   'adjudication',
-  async (job: Job) => {
-    // TODO: Implement adjudication logic (Rules Engine call)
-    console.log(`Processing adjudication for claim: ${job.data.claimId}`);
+  async (job: Job<{ claimId: string }>) => {
+    const { claimId } = job.data;
+    console.log(`Processing adjudication for claim: ${claimId}`);
+    
+    // Rule: Move to UNDER_REVIEW when picked up
+    await prisma.claim.update({
+      where: { id: claimId },
+      data: { status: 'UNDER_REVIEW' }
+    });
+
+    // Simulate some work
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    console.log(`Claim ${claimId} is now UNDER_REVIEW`);
   },
   {
     connection: { url: env.REDIS_URL },
