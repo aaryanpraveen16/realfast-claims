@@ -1,41 +1,149 @@
 import { prisma } from '../../config/db';
+import { PlanType } from '@prisma/client';
+import * as ratingService from './rating.service';
+import fs from 'fs';
+import path from 'path';
 
-// TODO: getMemberByUserId
-// Input:  userId: string
-// Output: Promise<Member | null>
 // Rule:   Fetch member record associated with user.
 export async function getMemberByUserId(userId: string) {
-  // TODO: Implement getMemberByUserId logic
+  return prisma.member.findUnique({
+    where: { user_id: userId },
+    include: { 
+      policy: { include: { coverage_rules: true } },
+      dependents: true
+    }
+  });
 }
 
-// TODO: updateMember
-// Input:  memberId: string, data: any
-// Output: Promise<Member>
 // Rule:   Update member info while excluding restricted fields.
 export async function updateMember(memberId: string, data: any) {
-  // TODO: Implement updateMember logic
+  const { dob, aadhaar_hash, user_id, ...updateData } = data;
+  return prisma.member.update({
+    where: { id: memberId },
+    data: updateData,
+  });
 }
 
-// TODO: createDependent
-// Input:  memberId: string, data: any
-// Output: Promise<Dependent>
-// Rule:   Create a new dependent for the member.
-export async function createDependent(memberId: string, data: any) {
-  // TODO: Implement createDependent logic
+// Rule:   Create a new dependent for the member with Underwriting integration.
+// Supports optional file upload.
+export async function createDependent(memberId: string, data: any, file?: any) {
+  const member = await prisma.member.findUnique({
+    where: { id: memberId },
+    include: { policy: true },
+  });
+
+  if (!member || !member.policy || member.policy.plan_type === PlanType.INDIVIDUAL) {
+    const error = new Error('Adding dependents is not allowed on Individual plans. Please upgrade.');
+    (error as any).statusCode = 400;
+    throw error;
+  }
+
+  // ENFORCEMENT: Max 5 dependents.
+  const dependentCount = await prisma.dependent.count({
+    where: { member_id: memberId }
+  });
+
+  if (dependentCount >= 5) {
+    const error = new Error('You have reached the maximum limit of 5 dependents allowed on this policy.');
+    (error as any).statusCode = 400;
+    throw error;
+  }
+
+  // Handle File Persistence if present
+  let health_report_url = null;
+  if (file) {
+    const fileName = `${Date.now()}_${file.filename}`;
+    const uploadPath = path.join(__dirname, '../../../public/uploads', fileName);
+    
+    const buffer = await file.toBuffer();
+    await fs.promises.writeFile(uploadPath, buffer);
+    health_report_url = `/uploads/${fileName}`;
+  }
+
+  // Underwriting Logic
+  const ratingData = ratingService.calculateDependentPremium({
+    relationship: data.relationship,
+    dob: data.dob,
+    hasMedicalConditions: !!data.medical_conditions,
+  });
+
+  return prisma.dependent.create({
+    data: {
+      ...data,
+      member_id: memberId,
+      status: ratingData.requiresManualUnderwriting ? 'PENDING_UNDERWRITING' : 'PENDING_PAYMENT',
+      premium_amount: ratingData.totalPremium,
+      health_report_url,
+      is_active: false,
+    },
+  });
 }
 
-// TODO: getDependentsByMemberId
-// Input:  memberId: string
-// Output: Promise<Dependent[]>
+// Rule:   Process payment for a dependent to make them active.
+export async function payDependentPremium(memberId: string, dependentId: string, paymentData: { method: string }) {
+  const dependent = await prisma.dependent.findUnique({
+    where: { id: dependentId }
+  });
+
+  if (!dependent || dependent.member_id !== memberId) {
+    const error = new Error('Dependent not found.');
+    (error as any).statusCode = 404;
+    throw error;
+  }
+
+  if (dependent.status !== 'PENDING_PAYMENT') {
+    const error = new Error('Dependent is not in a state that allows payment (Underwriting may be required).');
+    (error as any).statusCode = 400;
+    throw error;
+  }
+
+  return prisma.$transaction(async (tx) => {
+    // 1. Create the payment record
+    await tx.premiumPayment.create({
+      data: {
+        member_id: memberId,
+        policy_id: (await tx.member.findUnique({ where: { id: memberId } }))?.policy_id!,
+        dependent_id: dependentId,
+        amount: dependent.premium_amount,
+        method: paymentData.method,
+        status: 'PROCESSED'
+      }
+    });
+
+    // 2. Activate the dependent
+    return tx.dependent.update({
+      where: { id: dependentId },
+      data: {
+        status: 'ACTIVE',
+        is_active: true
+      }
+    });
+  });
+}
+
 // Rule:   List all dependents for a member.
 export async function getDependentsByMemberId(memberId: string) {
-  // TODO: Implement getDependentsByMemberId logic
+  return prisma.dependent.findMany({
+    where: { member_id: memberId },
+  });
 }
 
-// TODO: getMemberPolicy
-// Input:  memberId: string
-// Output: Promise<Policy | null>
 // Rule:   Fetch policy and associated coverage rules.
 export async function getMemberPolicy(memberId: string) {
-  // TODO: Implement getMemberPolicy logic
+  const member = await prisma.member.findUnique({
+    where: { id: memberId },
+    include: { policy: { include: { coverage_rules: true } } },
+  });
+  return member?.policy || null;
+}
+
+// Rule:   Select a policy for the member. Sets status to PENDING_PAYMENT.
+export async function selectPolicy(memberId: string, policyId: string) {
+  return prisma.member.update({
+    where: { id: memberId },
+    data: { 
+      policy_id: policyId,
+      status: 'PENDING_PAYMENT'
+    },
+  });
 }

@@ -7,8 +7,12 @@ import { MemberRegister } from './pages/auth/MemberRegister';
 import { ProviderRegister } from './pages/auth/ProviderRegister';
 import { Dashboard as AdminDashboard } from './pages/admin/Dashboard';
 import { Dashboard as MemberDashboard } from './pages/member/Dashboard';
+import { PolicySelection } from './pages/member/PolicySelection';
+import { Checkout } from './pages/member/Checkout';
 import { Dashboard as ProviderDashboard } from './pages/provider/Dashboard';
+
 import { Dashboard as AdjudicatorDashboard } from './pages/adjudicator/Dashboard';
+
 
 // Shared Layout Component
 export const Layout = ({ children, role }: { children: ReactNode, role: string }) => {
@@ -92,6 +96,18 @@ function App() {
           <Layout role="MEMBER"><MemberDashboard /></Layout>
         </ProtectedRoute>
       } />
+      <Route path="/member/select-policy" element={
+        <ProtectedRoute allowedRoles={['MEMBER']}>
+          <Layout role="MEMBER"><PolicySelection /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/member/checkout/:policyId" element={
+        <ProtectedRoute allowedRoles={['MEMBER']}>
+          <Layout role="MEMBER"><Checkout /></Layout>
+        </ProtectedRoute>
+      } />
+
+
 
       {/* Protected Provider Routes */}
       <Route path="/provider" element={

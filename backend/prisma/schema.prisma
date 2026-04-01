@@ -99,21 +99,28 @@ model Member {
   created_at   DateTime    @default(now())
   dependents   Dependent[]
   claims       Claim[]
+  premium_payments PremiumPayment[]
 }
 
+
 model Dependent {
-  id             String   @id @default(uuid())
-  member_id      String
-  member         Member   @relation(fields: [member_id], references: [id])
-  name           String
-  dob            DateTime
-  relationship   String
-  aadhaar_hash   String
-  deductible_met Float    @default(0)
-  limit_used     Float    @default(0)
-  is_active      Boolean  @default(true)
-  claims         Claim[]
+  id                String   @id @default(uuid())
+  member_id         String
+  member            Member   @relation(fields: [member_id], references: [id])
+  name              String
+  dob               DateTime
+  relationship      String
+  aadhaar_hash      String
+  medical_conditions String?
+  status             String   @default("PENDING_UNDERWRITING")
+  premium_amount     Float    @default(0)
+  health_report_url  String?
+  deductible_met    Float    @default(0)
+  limit_used        Float    @default(0)
+  is_active         Boolean  @default(false)
+  claims            Claim[]
 }
+
 
 model Policy {
   id                   String         @id @default(uuid())
@@ -131,7 +138,9 @@ model Policy {
   employer_id          String?
   members              Member[]
   coverage_rules       CoverageRule[]
+  premium_payments     PremiumPayment[]
 }
+
 
 model CoverageRule {
   id               String  @id @default(uuid())
@@ -255,3 +264,18 @@ model AuditLog {
   timestamp      DateTime @default(now())
   metadata_json  String?
 }
+
+model PremiumPayment {
+  id           String   @id @default(uuid())
+  member_id    String
+  member       Member   @relation(fields: [member_id], references: [id])
+  policy_id    String
+  policy       Policy   @relation(fields: [policy_id], references: [id])
+  dependent_id String?
+  amount       Float
+  method       String
+  status       String
+  paid_at      DateTime @default(now())
+}
+
+

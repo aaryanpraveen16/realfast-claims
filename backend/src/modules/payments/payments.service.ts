@@ -1,17 +1,59 @@
 import { prisma } from '../../config/db';
 
-// TODO: createPaymentRecord
-// Input:  adjudicationId: string, amount: number, paidTo: string
-// Output: Promise<Payment>
-// Rule:   Create a payment record for an approved claim.
-export async function createPaymentRecord(id: string, amount: number, paidTo: any) {
-  // TODO: Implement createPaymentRecord logic
+/**
+ * Rule:   Process a premium payment for a member's policy.
+ * Input:  memberId, policyId, amount, method
+ * Output: Promise<PremiumPayment>
+ * Action: Create PremiumPayment record and update Member status to ACTIVE.
+ */
+export async function processPremiumPayment(
+  memberId: string, 
+  policyId: string, 
+  amount: number, 
+  method: string
+) {
+  return await prisma.$transaction(async (tx) => {
+    // 1. Create the payment record
+    const payment = await tx.premiumPayment.create({
+      data: {
+        member_id: memberId,
+        policy_id: policyId,
+        amount,
+        method,
+        status: 'PAID',
+        paid_at: new Date(),
+      }
+    });
+
+    // 2. Update member status and policy
+    await tx.member.update({
+      where: { id: memberId },
+      data: {
+        status: 'ACTIVE',
+        policy_id: policyId
+      }
+    });
+
+    return payment;
+  });
 }
 
-// TODO: getPaymentByAdjudicationId
-// Input:  adjudicationId: string
-// Output: Promise<Payment | null>
-// Rule:   Retrieve payment record for an adjudication.
+// Existing claim-related stubs preserved/implemented
+export async function createPaymentRecord(id: string, amount: number, paidTo: any) {
+  return prisma.payment.create({
+    data: {
+      adjudication_id: id,
+      amount,
+      paid_to: paidTo,
+      method: 'BANK_TRANSFER',
+      status: 'PROCESSED',
+      paid_at: new Date(),
+    }
+  });
+}
+
 export async function getPaymentByAdjudicationId(id: string) {
-  // TODO: Implement getPaymentByAdjudicationId logic
+  return prisma.payment.findUnique({
+    where: { adjudication_id: id }
+  });
 }

@@ -1,21 +1,42 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
+import * as paymentsService from './payments.service';
+import * as membersService from '../members/members.service';
 
-// TODO: processPayment
-// Input:  request: FastifyRequest, reply: FastifyReply
-// Output: Promise<void>
-// Rule:   Initiate payment through stub Razorpay interface.
-// Calls:  paymentsService.createPaymentRecord, Razorpay API stub
-// Edge:   Prevent duplicate payment processing for the same adjudication ID.
-export async function processPayment(request: FastifyRequest, reply: FastifyReply) {
-  reply.code(501).send({ message: "Not implemented" });
+/**
+ * Handle premium payment processing.
+ */
+export async function processPremiumPayment(request: FastifyRequest, reply: FastifyReply) {
+  const userId = (request.user as any).userId;
+  const { policyId, amount, method } = request.body as { policyId: string, amount: number, method: string };
+
+  const member = await membersService.getMemberByUserId(userId);
+  if (!member) {
+    return reply.status(404).send({ message: 'Member not found' });
+  }
+
+  try {
+    const payment = await paymentsService.processPremiumPayment(
+      member.id,
+      policyId,
+      amount,
+      method
+    );
+
+    return reply.send({
+      message: 'Payment processed successfully',
+      payment
+    });
+  } catch (err: any) {
+    return reply.status(500).send({ message: err.message });
+  }
 }
 
-// TODO: getPaymentDetail
-// Input:  request: FastifyRequest, reply: FastifyReply
-// Output: Promise<void>
-// Rule:   Retrieve status and details of a processed payment.
-// Calls:  paymentsService.getPaymentByAdjudicationId
-// Edge:   Handle scenarios where payment is PENDING but may have failed on provider side.
-export async function getPaymentDetail(request: FastifyRequest, reply: FastifyReply) {
-  reply.code(501).send({ message: "Not implemented" });
+/**
+ * Handle claim payments (stubs).
+ */
+export async function getPaymentByAdjudication(request: FastifyRequest, reply: FastifyReply) {
+  const { adjudicationId } = request.params as { adjudicationId: string };
+  const payment = await paymentsService.getPaymentByAdjudicationId(adjudicationId);
+  if (!payment) return reply.status(404).send({ message: 'Payment not found' });
+  return reply.send(payment);
 }

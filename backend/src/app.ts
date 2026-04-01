@@ -1,16 +1,23 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
+import multipart from '@fastify/multipart';
+import fastifyStatic from '@fastify/static';
+import path from 'path';
 import { env } from './config/env';
+
 import { globalErrorHandler } from './middleware/errorHandler';
 
 import { authRouter } from './modules/auth/auth.router';
 import { membersRouter } from './modules/members/members.router';
+import { policiesRouter } from './modules/policies/policies.router';
 import { claimsRouter } from './modules/claims/claims.router';
 import { providersRouter } from './modules/providers/providers.router';
 import { adjudicationRouter } from './modules/adjudication/adjudication.router';
 import { disputesRouter } from './modules/disputes/disputes.router';
 import { adminRouter } from './modules/admin/admin.router';
+import { paymentsRouter } from './modules/payments/payments.router';
+
 
 // Start BullMQ workers
 import './jobs/adjudicationWorker';
@@ -27,17 +34,33 @@ fastify.register(jwt, {
   secret: env.JWT_SECRET,
 });
 
+fastify.register(multipart, {
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB
+  }
+});
+
+fastify.register(fastifyStatic, {
+  root: path.join(__dirname, '../public/uploads'),
+  prefix: '/uploads/',
+});
+
+
 // Register Global Error Handler
 fastify.setErrorHandler(globalErrorHandler);
 
 // Register Routes
 fastify.register(authRouter, { prefix: '/api/auth' });
 fastify.register(membersRouter, { prefix: '/api/members' });
+fastify.register(policiesRouter, { prefix: '/api/policies' });
+
 fastify.register(claimsRouter, { prefix: '/api/claims' });
 fastify.register(providersRouter, { prefix: '/api/providers' });
 fastify.register(adjudicationRouter, { prefix: '/api/adjudication' });
 fastify.register(disputesRouter, { prefix: '/api/disputes' });
 fastify.register(adminRouter, { prefix: '/api/admin' });
+fastify.register(paymentsRouter, { prefix: '/api/payments' });
+
 
 // Health Check
 fastify.get('/health', async () => {

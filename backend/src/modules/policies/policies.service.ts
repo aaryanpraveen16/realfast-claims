@@ -5,13 +5,23 @@ import { prisma } from '../../config/db';
 // Output: Promise<CoverageRule | null>
 // Rule:   Look up coverage rule for a specific service.
 export async function getCoverageRule(policyId: string, serviceType: string) {
-  // TODO: Implement getCoverageRule logic
+  return prisma.coverageRule.findFirst({
+    where: { policy_id: policyId, service_type: serviceType }
+  });
 }
 
-// TODO: getPolicy
-// Input:  policyId: string
-// Output: Promise<Policy | null>
 // Rule:   Fetch policy by ID.
 export async function getPolicy(id: string) {
-  // TODO: Implement getPolicy logic
+  return prisma.policy.findUnique({
+    where: { id },
+    include: { coverage_rules: true }
+  });
 }
+
+// Rule:   List all available policies with their coverage rules.
+export async function listAllPolicies() {
+  return prisma.policy.findMany({
+    include: { coverage_rules: true }
+  });
+}
+

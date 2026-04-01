@@ -6,6 +6,9 @@ import { roleGuard } from '../../middleware/roleGuard';
 export async function paymentsRouter(fastify: FastifyInstance) {
   fastify.addHook('preHandler', verifyJWT);
   
-  fastify.post('/', { preHandler: roleGuard(['ADJUDICATOR', 'SUPER_ADMIN']) }, paymentsController.processPayment);
-  fastify.get('/:id', { preHandler: roleGuard(['MEMBER', 'PROVIDER', 'ADJUDICATOR']) }, paymentsController.getPaymentDetail);
+  // Rule:   Process a premium payment for a member's policy.
+  fastify.post('/premium', { preHandler: roleGuard(['MEMBER']) }, paymentsController.processPremiumPayment);
+
+  // Claim-related stubs
+  fastify.get('/adjudication/:adjudicationId', { preHandler: roleGuard(['MEMBER', 'PROVIDER', 'ADJUDICATOR']) }, paymentsController.getPaymentByAdjudication);
 }
