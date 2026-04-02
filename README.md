@@ -9,12 +9,13 @@ The system is built on a modular architecture separating concerns into bounded c
 - **Claims**: Member and Provider life-cycles.
 - **Payments**: Integrated reconciliation.
 
-For a detailed breakdown, see the [Domain Model Documentation](./backend/docs/domain_model.md).
+For a detailed breakdown, see the [Domain Model Documentation](./docs/domain-model.md).
+For architecture decisions and self-review, see [Decisions](./docs/decisions.md) and [Self-Review](./docs/self-review.md).
 
 ---
 
 ## 🛠️ Technology Stack
-- **Backend**: Node.js, Fastify (High performance), Prisma ORM, BullMQ (Async jobs), Redis.
+- **Backend**: Node.js, Fastify, Prisma ORM, BullMQ, Redis.
 - **Frontend**: React 18, Vite, TypeScript, Tailwind CSS, Zustand, React Query.
 - **Database**: PostgreSQL 15.
 
@@ -29,13 +30,14 @@ For a detailed breakdown, see the [Domain Model Documentation](./backend/docs/do
 ### Step 1: Infrastructure
 Start the PostgreSQL database and Redis (required as a message broker for BullMQ background jobs) provided in the root:
 ```bash
+cd app
 docker-compose up -d
 ```
 
 ### Step 2: Backend Setup
 1. Navigate to the backend directory:
    ```bash
-   cd backend
+   cd app/backend
    ```
 2. Install dependencies:
    ```bash
@@ -88,13 +90,7 @@ The seeding script creates default accounts across all roles for testing:
 
 ---
 
-## 📄 Key API Modules
-- `/api/auth`: Multi-role registration and JWT auth.
-- `/api/claims`: Submission (Cashless/Reimbursement) and EOB generation.
-- `/api/underwriting`: Dependent risk assessment and loading logic.
-- `/api/adjudication`: Manual review queue and override logic.
-
----
-
 ## 📜 Documentation Links
-- [Detailed Domain Model](./backend/docs/domain_model.md) - Deep dive into entities, state machines, and the Adjudication Rules Engine.
+- [Detailed Domain Model](./docs/domain-model.md) - Deep dive into entities, state machines, and the Adjudication Rules Engine.
+- [Architecture Decisions](./docs/decisions.md) - Analysis of what was built and why.
+- [Self-Review](./docs/self-review.md) - Technical and clinical assessment of the codebase.
