@@ -12,7 +12,7 @@ export async function getQueue(request: FastifyRequest, reply: FastifyReply) {
 }
 
 export async function getAdjudicationDetail(
-  request: FastifyRequest<{ Params: { id: string } }>,
+  request: any,
   reply: FastifyReply
 ) {
   try {
@@ -28,7 +28,7 @@ export async function getAdjudicationDetail(
 }
 
 export async function decideLineItem(
-  request: FastifyRequest<{ Params: { id: string }; Body: AdjudicationInput }>,
+  request: any,
   reply: FastifyReply
 ) {
   try {
@@ -41,7 +41,7 @@ export async function decideLineItem(
 }
 
 export async function overrideLineItem(
-  request: FastifyRequest<{ Params: { id: string }; Body: AdjudicationInput }>,
+  request: any,
   reply: FastifyReply
 ) {
   try {
@@ -50,5 +50,18 @@ export async function overrideLineItem(
     return reply.status(200).send({ status: 'Override recorded' });
   } catch (error) {
     return reply.status(500).send({ error: 'Failed to record override' });
+  }
+}
+
+export async function resolveDispute(
+  request: any,
+  reply: FastifyReply
+) {
+  try {
+    const { id } = request.params;
+    await adjudicationService.resolveDispute(id, request.body);
+    return reply.status(200).send({ status: 'Dispute resolved' });
+  } catch (error: any) {
+    return reply.status(500).send({ error: error.message });
   }
 }

@@ -34,10 +34,24 @@ export const ClaimReview = () => {
       await axios.post(`/api/adjudication/line-items/${lineItemId}/decide`, decision, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      // Refresh
       await fetchDetail();
     } catch (err) {
       console.error('Decision failed', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleResolveDispute = async (lineItemId: string, resolution: any) => {
+    setSubmitting(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`/api/adjudication/line-items/${lineItemId}/resolve-dispute`, resolution, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      await fetchDetail();
+    } catch (err) {
+      console.error('Resolution failed', err);
     } finally {
       setSubmitting(false);
     }
@@ -60,6 +74,19 @@ export const ClaimReview = () => {
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Reviewing Claim #{claim.id.slice(0, 8)}</p>
         </div>
       </div>
+
+      {claim.status === 'UNDER_REVIEW' && claim.line_items.some((li: any) => li.status === 'DISPUTED') && (
+        <div className="bg-red-600 rounded-[2rem] p-8 text-white flex items-center justify-between shadow-2xl shadow-red-200">
+           <div className="flex items-center gap-6">
+              <div className="h-12 w-12 bg-white/20 rounded-2xl flex items-center justify-center text-2xl animate-pulse">🚩</div>
+              <div>
+                 <h3 className="text-xl font-black tracking-tight">Disputed Claim Detected</h3>
+                 <p className="text-white/80 text-sm font-medium">The member has formally challenged the previous adjudication for one or more items.</p>
+              </div>
+           </div>
+           <div className="px-6 py-2 bg-white/20 rounded-full text-[10px] font-black uppercase tracking-widest border border-white/30">Priority: High</div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         
@@ -107,11 +134,24 @@ export const ClaimReview = () => {
                              <span className="text-xs font-bold text-slate-500">{item.procedure_code}</span>
                           </div>
                           <p className="text-sm font-black text-slate-900 transition-colors uppercase tracking-tight">{item.procedure_code}</p>
-                          <p className="text-xs font-bold text-red-400">{item.denial_reason_en}</p>
+                          {item.denial_reason_en && <p className="text-xs font-bold text-red-400">{item.denial_reason_en}</p>}
+                          
+                          {item.adjudication?.dispute && (
+                             <div className="mt-4 p-4 bg-indigo-50 border border-indigo-100 rounded-2xl">
+                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-1">Member Dispute Reason</p>
+                                <p className="text-xs font-medium text-slate-700 italic">"{item.adjudication.dispute.reason}"</p>
+                             </div>
+                          )}
+                          {item.adjudication?.dispute?.resolution_note && (
+                             <div className="mt-2 p-4 bg-green-50 border border-green-100 rounded-2xl">
+                                <p className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-1">Resolution Note</p>
+                                <p className="text-xs font-medium text-slate-700">{item.adjudication.dispute.resolution_note}</p>
+                             </div>
+                          )}
                        </div>
 
-                       <div className="flex items-center gap-12">
-                          <div className="text-right">
+                       <div className="flex items-center gap-12 text-right">
+                          <div className="text-right min-w-[80px]">
                              <p className="text-lg font-black text-slate-900">₹{item.charged_amount.toLocaleString()}</p>
                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Charged</p>
                           </div>
@@ -119,20 +159,46 @@ export const ClaimReview = () => {
                           {item.status === 'NEEDS_REVIEW' || item.status === 'PENDING' ? (
                              <div className="flex gap-2">
                                 <button 
+                                  disabled={submitting}
                                   onClick={() => handleDecision(item.id, { is_covered: true, approved_amount: item.charged_amount, member_owes: 0 })}
-                                  className="px-6 py-3 bg-green-600 text-white text-[10px] font-black uppercase rounded-2xl shadow-lg shadow-green-100 hover:bg-green-700 transition-all"
+                                  className="px-6 py-3 bg-green-600 text-white text-[10px] font-black uppercase rounded-2xl shadow-lg shadow-green-100 hover:bg-green-700 transition-all disabled:opacity-50"
                                 >Approve</button>
                                 <button 
+                                  disabled={submitting}
                                   onClick={() => handleDecision(item.id, { is_covered: false, approved_amount: 0, member_owes: item.charged_amount, denial_reason_en: 'Manually rejected by adjudicator.' })}
-                                  className="px-6 py-3 bg-white text-red-600 border border-red-100 text-[10px] font-black uppercase rounded-2xl hover:bg-red-50 transition-all"
+                                  className="px-6 py-3 bg-white text-red-600 border border-red-100 text-[10px] font-black uppercase rounded-2xl hover:bg-red-50 transition-all disabled:opacity-50"
                                 >Reject</button>
                              </div>
+                          ) : item.status === 'DISPUTED' ? (
+                             <div className="flex flex-col gap-2">
+                                <button 
+                                  disabled={submitting}
+                                  onClick={() => {
+                                     const note = prompt('Enter Resolution Note (Revised Decision):');
+                                     if (note) handleResolveDispute(item.id, { status: 'REVISED', approved_amount: item.charged_amount, resolution_note: note });
+                                  }}
+                                  className="px-6 py-3 bg-indigo-600 text-white text-[10px] font-black uppercase rounded-2xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all disabled:opacity-50"
+                                >Override & Approve</button>
+                                <button 
+                                  disabled={submitting}
+                                  onClick={() => {
+                                     const note = prompt('Enter Reason for Upholding Original Decision:');
+                                     if (note) handleResolveDispute(item.id, { status: 'UPHELD', approved_amount: 0, resolution_note: note });
+                                  }}
+                                  className="px-6 py-3 bg-white text-slate-600 border border-slate-200 text-[10px] font-black uppercase rounded-2xl hover:bg-slate-50 transition-all disabled:opacity-50"
+                                >Uphold Original</button>
+                             </div>
                           ) : (
-                             <span className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border ${
-                               item.status === 'APPROVED' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'
-                             }`}>
-                                {item.status}
-                             </span>
+                             <div className="text-right">
+                                <span className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border block ${
+                                  item.status === 'APPROVED' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'
+                                }`}>
+                                   {item.status}
+                                </span>
+                                {item.adjudication?.dispute && (
+                                   <p className="text-[9px] font-black text-indigo-400 mt-2 uppercase tracking-[0.2em]">Resolved ({item.adjudication.dispute.status})</p>
+                                )}
+                             </div>
                           )}
                        </div>
                     </div>

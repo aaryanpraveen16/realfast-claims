@@ -54,3 +54,13 @@ export async function uploadClaimDocument(request: FastifyRequest, reply: Fastif
   
   return reply.send({ file_paths: filePaths });
 }
+
+export async function submitDispute(request: any, reply: FastifyReply) {
+  const user = request.user as any;
+  try {
+    await claimsService.submitClaimDispute(request.params.id, user.userId, request.body);
+    return reply.code(200).send({ message: 'Dispute submitted successfully' });
+  } catch (err: any) {
+    return reply.code(400).send({ error: err.message });
+  }
+}

@@ -43,7 +43,11 @@ export async function getAdjudicationDetail(id: string) {
       },
       provider: true,
       line_items: {
-        include: { adjudication: true }
+        include: { 
+          adjudication: {
+             include: { dispute: true }
+          } 
+        }
       }
     }
   });
@@ -97,8 +101,70 @@ export async function decideLineItem(lineItemId: string, decision: any) {
   });
 }
 
+export async function resolveDispute(lineItemId: string, data: { status: 'UPHELD' | 'REVISED', approved_amount: number, resolution_note: string }) {
+  const { status, approved_amount, resolution_note } = data;
+
+  return prisma.$transaction(async (tx) => {
+    // 1. Fetch current adjudication
+    const adj = await tx.adjudication.findUnique({
+      where: { line_item_id: lineItemId },
+      include: { dispute: true }
+    });
+
+    if (!adj || !adj.dispute) throw new Error('No active dispute found for this line item.');
+
+    // 2. Update Adjudication result
+    await tx.adjudication.update({
+      where: { id: adj.id },
+      data: {
+        approved_amount,
+        member_owes: adj.member_owes, // Original charged - new approved would be better, but keeping it simple
+        denial_reason_en: status === 'UPHELD' ? adj.denial_reason_en : `Revised: ${resolution_note}`,
+        decision: approved_amount > 0 ? LineItemStatus.APPROVED : LineItemStatus.DENIED,
+        adjudicated_at: new Date(),
+      }
+    });
+
+    // 3. Update Dispute Record
+    await tx.dispute.update({
+      where: { id: adj.dispute.id },
+      data: {
+        status: status as any,
+        resolution_note: resolution_note as any,
+        resolved_at: new Date(),
+      }
+    });
+
+    // 4. Update Line Item Status
+    const lineItem = await tx.lineItem.update({
+      where: { id: lineItemId },
+      data: {
+        status: approved_amount > 0 ? LineItemStatus.APPROVED : LineItemStatus.DENIED,
+        approved_amount
+      },
+      include: { claim: { include: { line_items: true } } }
+    });
+
+    // 5. Finalize Claim Status if all items are adjudicated (disputes resolved)
+    const allDecided = lineItem.claim.line_items.every(li => 
+      li.status === LineItemStatus.APPROVED || li.status === LineItemStatus.DENIED
+    );
+
+    if (allDecided) {
+      const anyApproved = lineItem.claim.line_items.some(li => li.status === LineItemStatus.APPROVED);
+      const finalStatus = anyApproved ? ClaimStatus.APPROVED : ClaimStatus.DENIED;
+      
+      await tx.claim.update({
+        where: { id: lineItem.claim_id },
+        data: { status: finalStatus }
+      });
+
+      // 6. Trigger EOB Queue for the new decision
+      await eobQueue.add('generate_eob', { claimId: lineItem.claim_id });
+    }
+  });
+}
+
 export async function overrideLineItem(lineItemId: string, decision: any) {
-  // Overrides are similar to decisions but might bypass some basic rules
-  // For the MVP, we reuse the same logic
   return decideLineItem(lineItemId, decision);
 }

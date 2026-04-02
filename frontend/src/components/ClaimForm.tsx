@@ -71,7 +71,8 @@ export const ClaimForm = ({ mode, initialMemberId, onSubmitSuccess }: ClaimFormP
   // Member/Dependent State
   const [isDependent, setIsDependent] = useState(false);
   const [dependentId, setDependentId] = useState('');
-  const [dependents, setDependents] = useState<{ id: string, name: string }[]>([]);
+  const [dependents, setDependents] = useState<{ id: string, name: string, status: string }[]>([]);
+  const [memberStatus, setMemberStatus] = useState<string | null>(null);
   
   // Line Items & Files
   const [lineItems, setLineItems] = useState<LineItemInput[]>([
@@ -101,6 +102,7 @@ export const ClaimForm = ({ mode, initialMemberId, onSubmitSuccess }: ClaimFormP
         if (mode === 'MEMBER') {
            const memberRes = await axios.get('/api/members/me', { headers });
            const member = memberRes.data;
+           setMemberStatus(member.status);
            setDependents(member.dependents || []);
            setBankAccount(member.bank_account || '');
            setIfscCode(member.ifsc_code || '');
@@ -267,6 +269,45 @@ export const ClaimForm = ({ mode, initialMemberId, onSubmitSuccess }: ClaimFormP
     }
   };
 
+  // Block the form if the member is not ACTIVE
+  if (mode === 'MEMBER' && memberStatus && memberStatus !== 'ACTIVE') {
+    const isUnderwriting = memberStatus === 'PENDING_UNDERWRITING';
+    return (
+      <div className="bg-white rounded-[2.5rem] shadow-2xl p-14 text-center border border-slate-100 space-y-6">
+        <div className={`inline-flex items-center justify-center h-20 w-20 rounded-3xl mx-auto ${
+          isUnderwriting ? 'bg-amber-50 text-amber-500' : 'bg-red-50 text-red-400'
+        }`}>
+          <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04L3 8v5.5a8.5 8.5 0 004.5 7.5l4.5 2.5 4.5-2.5A8.5 8.5 0 0021 13.5V8l-3.382-1.672z" />
+          </svg>
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-2xl font-black text-slate-900">
+            {isUnderwriting ? 'Underwriting In Progress' : 'Account Not Active'}
+          </h3>
+          <p className="text-slate-500 font-medium max-w-md mx-auto leading-relaxed">
+            {isUnderwriting
+              ? 'Your application is currently being reviewed by our underwriting team. You can only file claims once your policy is approved and active.'
+              : 'Your account is not currently active. Please contact support for assistance.'}
+          </p>
+        </div>
+        {isUnderwriting && (
+          <div className="p-5 bg-amber-50 rounded-2xl border border-amber-100 text-left space-y-2">
+            <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">What happens next?</p>
+            <ul className="text-sm font-medium text-amber-700 space-y-1">
+              <li>· An underwriter will review your medical history and declarations.</li>
+              <li>· They may send you a message requesting more information.</li>
+              <li>· Once approved, your policy activates and you can file claims.</li>
+            </ul>
+          </div>
+        )}
+        <button onClick={() => navigate(-1)} className="px-8 py-3 bg-slate-900 text-white rounded-2xl text-sm font-black hover:bg-slate-800 transition-all">
+          Go Back
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-[2.5rem] shadow-2xl p-10 overflow-hidden border border-slate-100">
       <div className="flex items-center gap-6 mb-10">
@@ -378,7 +419,7 @@ export const ClaimForm = ({ mode, initialMemberId, onSubmitSuccess }: ClaimFormP
                        className="w-full px-6 py-4 bg-white border-none rounded-2xl text-slate-900 font-bold focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
                      >
                        <option value="">Choose partner/child...</option>
-                       {dependents.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                       {dependents.filter((d: any) => d.status === 'ACTIVE').map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                      </select>
                   </div>
                )}

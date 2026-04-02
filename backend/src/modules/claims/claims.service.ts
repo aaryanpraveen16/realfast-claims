@@ -191,6 +191,70 @@ export async function getProviderClaims(providerUserId: string): Promise<ClaimSu
   return claims.map(c => mapToSummary(c));
 }
 
+export async function submitClaimDispute(claimId: string, actorUserId: string, data: { reason: string }): Promise<void> {
+  const claim = await prisma.claim.findUnique({
+    where: { id: claimId },
+    include: {
+      member: true,
+      line_items: {
+        include: { adjudication: true }
+      }
+    }
+  });
+
+  if (!claim) {
+    console.error(`[Dispute Error] Claim ${claimId} not found.`);
+    throw new Error('Claim not found.');
+  }
+
+  if (claim.member.user_id !== actorUserId) {
+    console.error(`[Dispute Error] User ${actorUserId} attempted to dispute claim ${claimId} belonging to user ${claim.member.user_id}`);
+    throw new Error('Forbidden: You can only dispute your own claims.');
+  }
+
+  const terminalStatuses: ClaimStatus[] = [ClaimStatus.APPROVED, ClaimStatus.PARTIAL, ClaimStatus.DENIED];
+  if (!terminalStatuses.includes(claim.status)) {
+    console.error(`[Dispute Error] Claim ${claimId} has status ${claim.status}. Expected one of: ${terminalStatuses.join(', ')}`);
+    throw new Error(`Only finalized claims (Approved/Denied/Partial) can be disputed. Current status: ${claim.status}`);
+  }
+
+  // Transaction to update statuses and create dispute records
+  await (prisma as any).$transaction(async (tx: any) => {
+    // 1. Update Claim Status
+    await tx.claim.update({
+      where: { id: claimId },
+      data: { status: ClaimStatus.UNDER_REVIEW }
+    });
+
+    // 2. Identify line items to dispute (those with adjudications that aren't fully approved)
+    for (const item of claim.line_items) {
+      if (item.adjudication) {
+        // Mark line item as DISPUTED
+        await tx.lineItem.update({
+          where: { id: item.id },
+          data: { status: 'DISPUTED' as any }
+        });
+
+        // Create Dispute Record
+        await tx.dispute.upsert({
+          where: { adjudication_id: item.adjudication.id },
+          update: {
+            reason: data.reason,
+            status: 'FILED'
+          },
+          create: {
+            adjudication_id: item.adjudication.id,
+            reason: data.reason,
+            status: 'FILED'
+          }
+        });
+      }
+    }
+  });
+
+  console.log(`[Dispute] Claim ${claimId} successfully disputed by member.`);
+}
+
 // Helpers
 function mapToClaimResponse(claim: any): ClaimResponse {
   return {
@@ -209,6 +273,8 @@ function mapToClaimResponse(claim: any): ClaimResponse {
       service_type: li.service_type,
       procedure_code: li.procedure_code,
       charged_amount: li.charged_amount,
+      approved_amount: li.approved_amount,
+      denial_reason_en: li.denial_reason_en,
       status: li.status
     })),
     total_charged: claim.line_items.reduce((sum: number, li: any) => sum + li.charged_amount, 0)

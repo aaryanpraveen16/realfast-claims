@@ -33,6 +33,7 @@ enum LineItemStatus {
   APPROVED
   DENIED
   NEEDS_REVIEW
+  DISPUTED
 }
 
 enum DisputeStatus {
@@ -40,6 +41,7 @@ enum DisputeStatus {
   UNDER_REVIEW
   UPHELD
   REJECTED
+  REVISED
 }
 
 enum NetworkStatus {

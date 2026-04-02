@@ -30,6 +30,12 @@ export const Checkout = () => {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'CARD' | 'UPI'>('CARD');
+  
+  // Payment Form State
+  const [cardNo, setCardNo] = useState('');
+  const [expiry, setExpiry] = useState('');
+  const [cvv, setCvv] = useState('');
+  const [upiId, setUpiId] = useState('');
 
 
   useEffect(() => {
@@ -55,6 +61,20 @@ export const Checkout = () => {
 
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Basic Validation
+    if (paymentMethod === 'CARD') {
+      if (!cardNo || !expiry || !cvv) {
+        alert('Please fill in all card details.');
+        return;
+      }
+    } else if (paymentMethod === 'UPI') {
+      if (!upiId) {
+        alert('Please enter your UPI ID.');
+        return;
+      }
+    }
+
     setProcessing(true);
     try {
       const token = localStorage.getItem('token');
@@ -109,7 +129,8 @@ export const Checkout = () => {
   const currentPolicy = member?.policy;
   
   const dependent = dependentId ? (member?.dependents || []).find((d: any) => d.id === dependentId) : null;
-  const amountToPay = dependent ? dependent.premium_amount : policy.premium;
+  const dependentPremium = dependent ? (dependent.base_premium || 0) + (dependent.loading_amount || 0) : 0;
+  const amountToPay = dependent ? dependentPremium : policy.premium;
 
   return (
     <div className="max-w-4xl mx-auto py-10 px-4">
@@ -173,7 +194,7 @@ export const Checkout = () => {
                 </div>
                 <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
                   <span className="text-lg font-bold text-slate-900">Top-up Premium</span>
-                  <span className="text-2xl font-black text-indigo-600">₹{dependent.premium_amount.toLocaleString()}</span>
+                  <span className="text-2xl font-black text-indigo-600">₹{dependentPremium.toLocaleString()}</span>
                 </div>
               </div>
             ) : (
@@ -243,16 +264,37 @@ export const Checkout = () => {
               <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">Card Number</label>
-                  <input type="text" placeholder="•••• •••• •••• ••••" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none transition-all" />
+                  <input 
+                    type="text" 
+                    required
+                    value={cardNo}
+                    onChange={(e) => setCardNo(e.target.value)}
+                    placeholder="•••• •••• •••• ••••" 
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none transition-all" 
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">Expiry Date</label>
-                    <input type="text" placeholder="MM / YY" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none transition-all" />
+                    <input 
+                      type="text" 
+                      required
+                      value={expiry}
+                      onChange={(e) => setExpiry(e.target.value)}
+                      placeholder="MM / YY" 
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none transition-all" 
+                    />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">CVV</label>
-                    <input type="text" placeholder="•••" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none transition-all" />
+                    <input 
+                      type="password" 
+                      required
+                      value={cvv}
+                      onChange={(e) => setCvv(e.target.value)}
+                      placeholder="•••" 
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none transition-all" 
+                    />
                   </div>
                 </div>
               </div>
@@ -260,7 +302,14 @@ export const Checkout = () => {
               <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">UPI ID</label>
-                  <input type="text" placeholder="username@upi" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none transition-all" />
+                  <input 
+                    type="text" 
+                    required
+                    value={upiId}
+                    onChange={(e) => setUpiId(e.target.value)}
+                    placeholder="username@upi" 
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none transition-all" 
+                  />
                 </div>
               </div>
             )}

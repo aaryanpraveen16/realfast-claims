@@ -83,8 +83,11 @@ export const Dashboard = () => {
     fetchProfile();
   };
 
-  const handlePayDependent = (dependentId: string) => {
-    navigate(`/member/checkout/${member.policy_id}?dependent=${dependentId}`);
+  const handlePayDependent = (e: React.MouseEvent, dependentId: string) => {
+    e.stopPropagation();
+    if (member?.policy_id) {
+      navigate(`/member/checkout/${member.policy_id}?dependent=${dependentId}`);
+    }
   };
 
   const handleOpenTimeline = (id: string, type: 'MEMBER' | 'DEPENDENT', name: string) => {
@@ -206,6 +209,22 @@ export const Dashboard = () => {
           </div>
         </div>
 
+        <div className="p-8 bg-white rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Deductible Paid</p>
+            <div className="flex items-baseline gap-2 mt-2">
+              <p className="text-4xl font-black text-slate-900">₹{(member.deductible_met || 0).toLocaleString()}</p>
+              <p className="text-sm font-bold text-slate-400">/ ₹{member.policy?.deductible?.toLocaleString()}</p>
+            </div>
+          </div>
+          <div className="mt-6 w-full bg-slate-100 rounded-full h-2 overflow-hidden shadow-inner">
+            <div
+              className="bg-amber-500 h-full rounded-full shadow-lg shadow-amber-100 transition-all duration-1000"
+              style={{ width: `${Math.min(100, ((member.deductible_met || 0) / (member.policy?.deductible || 1)) * 100)}%` }}
+            ></div>
+          </div>
+        </div>
+
         <div className="p-8 bg-white rounded-[2.5rem] shadow-sm border border-slate-100">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Claim Overview</p>
           <div className="mt-4 space-y-4">
@@ -232,8 +251,14 @@ export const Dashboard = () => {
                   </span>
                 </div>
                 <button
+                  onClick={() => navigate('/member/submit-claim')}
+                  className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-indigo-100 transition-all hover:-translate-y-0.5"
+                >
+                  File a Claim
+                </button>
+                <button
                   onClick={() => navigate('/member/claims')}
-                  className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-slate-200"
+                  className="w-full py-3 bg-white hover:bg-slate-50 text-slate-700 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] border border-slate-100 transition-all"
                 >
                   View History
                 </button>
@@ -277,6 +302,7 @@ export const Dashboard = () => {
               <div>
                 <p className="font-bold text-slate-900 leading-none">{member.name}</p>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Self (Primary)</p>
+                <p className="text-[9px] font-mono text-slate-300 mt-0.5 select-all">{member.id}</p>
               </div>
             </div>
             <div className="pt-4 border-t border-slate-50 flex justify-between items-center">
@@ -305,6 +331,7 @@ export const Dashboard = () => {
                 <div>
                   <p className="font-bold text-slate-900 leading-none">{dep.name}</p>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{dep.relationship}</p>
+                  <p className="text-[9px] font-mono text-slate-300 mt-0.5 select-all">{dep.id}</p>
                 </div>
               </div>
 
@@ -315,7 +342,7 @@ export const Dashboard = () => {
                   <span className="px-3 py-1 bg-amber-100 text-[9px] font-bold text-amber-700 rounded-lg tracking-widest uppercase">In Underwriting</span>
                 ) : dep.status === 'AWAITING_PAYMENT' ? (
                   <button
-                    onClick={() => handlePayDependent(dep.id)}
+                    onClick={(e) => handlePayDependent(e, dep.id)}
                     className="px-3 py-1 bg-indigo-600 text-[9px] font-bold text-white rounded-lg tracking-widest uppercase hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100"
                   >
                     Pay ₹{(dep.base_premium + dep.loading_amount).toLocaleString()}

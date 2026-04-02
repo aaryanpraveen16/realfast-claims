@@ -10,4 +10,5 @@ export async function adjudicationRouter(fastify: FastifyInstance) {
   fastify.get('/claims/:id', { preHandler: roleGuard(['ADJUDICATOR']) }, adjudicationController.getAdjudicationDetail);
   fastify.post('/line-items/:id/decide', { preHandler: roleGuard(['ADJUDICATOR']) }, adjudicationController.decideLineItem);
   fastify.post('/line-items/:id/override', { preHandler: roleGuard(['ADJUDICATOR']) }, adjudicationController.overrideLineItem);
+  fastify.post('/line-items/:id/resolve-dispute', { preHandler: roleGuard(['ADJUDICATOR']) }, adjudicationController.resolveDispute);
 }

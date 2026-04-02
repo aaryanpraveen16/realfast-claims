@@ -1,27 +1,30 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
+import { DisputeModal } from '../../components/DisputeModal';
 
 export const ClaimDetail = () => {
   const { id } = useParams();
   const [claim, setClaim] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isDisputeModalOpen, setIsDisputeModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const fetchClaim = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`/api/claims/${id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      setClaim(res.data);
+    } catch (err: any) {
+      setError('Failed to fetch claim details.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchClaim = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const res = await axios.get(`/api/claims/${id}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        setClaim(res.data);
-      } catch (err: any) {
-        setError('Failed to fetch claim details.');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchClaim();
   }, [id]);
 
@@ -82,39 +85,145 @@ export const ClaimDetail = () => {
            </div>
         </div>
 
-        {/* Line Items Table */}
         <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
            <div className="px-10 py-6 border-b border-slate-50 flex items-center justify-between">
               <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Treatment Breakdown</h3>
               <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">{claim.line_items.length} Items</p>
            </div>
-           <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                 <thead>
-                    <tr className="bg-slate-50/50">
-                       <th className="px-10 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Service Type</th>
-                       <th className="px-10 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Code</th>
-                       <th className="px-10 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Requested</th>
-                       <th className="px-10 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                    </tr>
-                 </thead>
-                 <tbody className="divide-y divide-slate-50">
-                    {claim.line_items.map((li: any) => (
-                       <tr key={li.id} className="group hover:bg-slate-50/50 transition-colors">
-                          <td className="px-10 py-6">
-                             <div className="text-sm font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{li.service_type.replace('_', ' ')}</div>
-                          </td>
-                          <td className="px-10 py-6 text-sm font-bold text-slate-500">{li.procedure_code}</td>
-                          <td className="px-10 py-6 text-sm font-black text-slate-900">₹{li.charged_amount.toLocaleString()}</td>
-                          <td className="px-10 py-6">
-                             <span className="px-3 py-1 bg-slate-100 text-[8px] font-black text-slate-500 rounded-full uppercase tracking-widest border border-slate-200">
-                                {li.status}
-                             </span>
-                          </td>
-                       </tr>
-                    ))}
-                 </tbody>
-              </table>
+           <div className="divide-y divide-slate-50">
+              {claim.line_items.map((li: any) => {
+                const statusStyles: Record<string, string> = {
+                  APPROVED:      'bg-green-50 text-green-700 border-green-100',
+                  DENIED:        'bg-red-50 text-red-700 border-red-100',
+                  PARTIAL:       'bg-amber-50 text-amber-700 border-amber-100',
+                  NEEDS_REVIEW:  'bg-indigo-50 text-indigo-700 border-indigo-100',
+                };
+                const statusLabel: Record<string, string> = {
+                  APPROVED:     'Approved',
+                  DENIED:       'Denied',
+                  PARTIAL:      'Partially Approved',
+                  NEEDS_REVIEW: 'Under Review',
+                };
+                const style = statusStyles[li.status] ?? 'bg-slate-100 text-slate-500 border-slate-200';
+                const label = statusLabel[li.status] ?? li.status;
+                const hasReason = li.denial_reason_en && li.denial_reason_en.trim() !== '';
+
+                return (
+                  <div key={li.id} className="px-10 py-8 flex flex-col gap-4">
+                    <div className="flex items-start justify-between gap-6">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-black text-slate-900 uppercase tracking-tight">
+                          {li.service_type.replace(/_/g, ' ')}
+                        </p>
+                        <p className="text-[10px] font-bold text-slate-400 mt-1">{li.procedure_code}</p>
+                      </div>
+                      <div className="text-right shrink-0 space-y-1">
+                        <p className="text-xs font-bold text-slate-400">Requested</p>
+                        <p className="text-lg font-black text-slate-900">₹{li.charged_amount.toLocaleString()}</p>
+                      </div>
+                      {li.approved_amount != null && (
+                        <div className="text-right shrink-0 space-y-1">
+                          <p className="text-xs font-bold text-slate-400">Approved</p>
+                          <p className={`text-lg font-black ${li.approved_amount === 0 ? 'text-red-500' : 'text-green-600'}`}>
+                            ₹{li.approved_amount.toLocaleString()}
+                          </p>
+                        </div>
+                      )}
+                      <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border shrink-0 ${style}`}>
+                        {label}
+                      </span>
+                    </div>
+                    {hasReason ? (
+                      <div className={`flex items-start gap-3 px-5 py-4 rounded-2xl border text-sm ${
+                        li.status === 'DENIED'       ? 'bg-red-50 border-red-100 text-red-700' :
+                        li.status === 'NEEDS_REVIEW' ? 'bg-indigo-50 border-indigo-100 text-indigo-700' :
+                                                       'bg-amber-50 border-amber-100 text-amber-700'
+                      }`}>
+                        <p className="font-medium leading-relaxed">{li.denial_reason_en}</p>
+                      </div>
+                    ) : null}
+
+                    {li.adjudication?.dispute?.resolution_note && (
+                      <div className="flex items-start gap-3 px-5 py-4 rounded-2xl border bg-green-50 border-green-100 text-green-700 text-sm mt-3 animate-in slide-in-from-top-2 duration-500">
+                        <svg className="h-5 w-5 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div>
+                          <p className="font-black uppercase text-[10px] tracking-widest mb-1 text-green-800">Adjudicator Resolution</p>
+                          <p className="font-medium leading-relaxed">{li.adjudication.dispute.resolution_note}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {(!hasReason && li.status !== 'APPROVED') && (
+                      (() => {
+                        const hints: Record<string, { color: string; title: string; bullets: string[] }> = {
+                          PENDING: {
+                            color: 'bg-slate-50 border-slate-100 text-slate-500',
+                            title: 'Awaiting adjudication',
+                            bullets: [
+                              'Your claim is queued for review.',
+                              'The rules engine will evaluate coverage, policy limits, and PED status.',
+                              'This typically completes within minutes.',
+                            ]
+                          },
+                          DENIED: {
+                            color: 'bg-red-50 border-red-100 text-red-700',
+                            title: 'Common reasons for denial',
+                            bullets: [
+                              'The service type is not covered under your policy.',
+                              'A Pre-Existing Disease (PED) waiting period has not been completed.',
+                              'Your annual policy limit was exhausted before this item was processed.',
+                            ]
+                          },
+                          NEEDS_REVIEW: {
+                            color: 'bg-indigo-50 border-indigo-100 text-indigo-700',
+                            title: 'Manual review required',
+                            bullets: [
+                              'This item is high-value and requires pre-authorization verification.',
+                              'An adjudicator will review the clinical documentation.',
+                              'No action is required from you at this time.',
+                            ]
+                          },
+                          PARTIAL: {
+                            color: 'bg-amber-50 border-amber-100 text-amber-700',
+                            title: 'Why only part was approved',
+                            bullets: [
+                              'Your copay or coinsurance rate reduced the approved amount.',
+                              'The per-service annual sublimit was reached.',
+                              'Out-of-network penalty may have applied.',
+                            ]
+                          },
+                          DISPUTED: {
+                            color: 'bg-red-50 border-red-200 text-red-700',
+                            title: 'Dispute Filed',
+                            bullets: [
+                              'You have formally challenged the decision for this item.',
+                              'A medical adjudicator is re-evaluating the documentation.',
+                              'Resolution typically takes 3-5 business days.',
+                            ]
+                          },
+                        };
+                        const hint = hints[li.status];
+                        if (!hint) return null;
+                        return (
+                          <div className={`px-5 py-4 rounded-2xl border text-sm ${hint.color}`}>
+                            <p className="font-black text-[10px] uppercase tracking-widest mb-2">{hint.title}</p>
+                            <ul className="space-y-1">
+                              {hint.bullets.map((b, i) => (
+                                <li key={i} className="flex items-start gap-2 font-medium leading-relaxed">
+                                  <span className="mt-1 shrink-0">·</span>
+                                  {b}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })()
+                    )}
+                  </div>
+                );
+              })}
            </div>
         </div>
 
@@ -127,12 +236,24 @@ export const ClaimDetail = () => {
               Export EOB (Available at Terminal Status)
            </button>
            <button 
-             disabled 
-             className="flex-1 py-6 bg-slate-100 text-slate-400 rounded-3xl text-[11px] font-black uppercase tracking-widest cursor-not-allowed border-2 border-dashed border-slate-200"
+             onClick={() => setIsDisputeModalOpen(true)}
+             disabled={!['APPROVED', 'PARTIAL', 'DENIED'].includes(claim.status)}
+             className={`flex-1 py-6 rounded-3xl text-[11px] font-black uppercase tracking-widest transition-all border-2 border-dashed ${
+               ['APPROVED', 'PARTIAL', 'DENIED'].includes(claim.status)
+                 ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100 hover:border-red-300 transform active:scale-95 shadow-lg shadow-red-100/50'
+                 : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+             }`}
             >
               Submit Dispute
            </button>
         </div>
+
+        <DisputeModal
+          isOpen={isDisputeModalOpen}
+          onClose={() => setIsDisputeModalOpen(false)}
+          claimId={id!}
+          onSuccess={fetchClaim}
+        />
 
       </div>
     </div>
