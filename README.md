@@ -1,4 +1,4 @@
-# RealFast Claims 🚀
+# RealFast Claims
 
 **RealFast Claims** is a health insurance claims processing platform. It automates adjudication, underwriting, and payment reconciliation with a "RealFast" (Real-time) focus.
 
@@ -14,14 +14,14 @@ For architecture decisions and self-review, see [Decisions](./docs/decisions.md)
 
 ---
 
-## 🛠️ Technology Stack
+## Technology Stack
 - **Backend**: Node.js, Fastify, Prisma ORM, BullMQ, Redis.
 - **Frontend**: React 18, Vite, TypeScript, Tailwind CSS, Zustand, React Query.
 - **Database**: PostgreSQL 15.
 
 ---
 
-## 🚀 Setup Instructions
+## Setup Instructions
 
 ### Prerequisites
 - [Node.js](https://nodejs.org/) v18 or higher.
@@ -77,7 +77,7 @@ docker-compose up -d
 
 ---
 
-## 🧪 Testing with Seeded Users
+## Testing with Seeded Users
 The seeding script creates default accounts across all roles for testing:
 
 | Role | Email | Password |
@@ -90,7 +90,7 @@ The seeding script creates default accounts across all roles for testing:
 
 ---
 
-## 📜 Documentation Links
+## Documentation Links
 - [Detailed Domain Model](./docs/domain-model.md) - Deep dive into entities, state machines, and the Adjudication Rules Engine.
 - [Architecture Decisions](./docs/decisions.md) - Analysis of what was built and why.
 - [Self-Review](./docs/self-review.md) - Technical and clinical assessment of the codebase.
