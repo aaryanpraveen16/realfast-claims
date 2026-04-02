@@ -1,6 +1,6 @@
 # RealFast Claims 🚀
 
-**RealFast Claims** is a high-performance, Domain-Driven Design (DDD) health insurance claims processing platform. It automates adjudication, underwriting, and payment reconciliation with a "RealFast" (Real-time) focus.
+**RealFast Claims** is a health insurance claims processing platform. It automates adjudication, underwriting, and payment reconciliation with a "RealFast" (Real-time) focus.
 
 ## 🏗️ Architecture & Domain Model
 The system is built on a modular architecture separating concerns into bounded contexts:
